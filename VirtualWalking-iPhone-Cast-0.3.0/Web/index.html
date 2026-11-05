@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#09191f">
+  <meta name="description" content="VirtualWalking für iPhone und Cast: FTMS-Laufbanddaten lesen, Laufvideos ans Tempo anpassen und Training lokal aufzeichnen.">
+  <meta name="apple-mobile-web-app-title" content="VirtualWalking">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>VirtualWalking iPhone · Testversion 0.3.0</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css?v=0.3.0">
+  <script src="core.js?v=0.3.0" defer></script>
+  <script src="bluetooth.js?v=0.3.0" defer></script>
+  <script src="joint-start.js?v=0.3.0" defer></script>
+  <script src="app.js?v=0.3.0" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand"><img src="icon.svg" alt="" width="34" height="34"><div><strong>VirtualWalking</strong><small>iPhone · Native Cast-Entwicklung 0.3.0</small></div></div>
+      <span id="controlMode" class="read-badge">FTMS · Lesemodus</span>
+    </header>
+    <p id="tvStatus" class="notice" role="status">TV: Über das Cast-Symbol oben verbinden.</p>
+    <p class="intro">mit Bluetooth verbinden, wähle ein Laufvideo und zeichne dein Training lokal auf</p>
+
+    <aside id="browserNotice" class="notice" hidden>
+      <strong>Für die Laufband-Verbindung bitte Bluefy verwenden.</strong>
+      <p>Dieser Browser bietet keinen Bluetooth-Zugriff. Öffne dieselbe Adresse in Bluefy auf deinem iPhone.</p>
+      <a href="https://apps.apple.com/de/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener noreferrer">Bluefy im App Store öffnen ↗</a>
+    </aside>
+
+    <section class="connection card" aria-label="Bluetooth-Laufband">
+      <div class="connection-info"><span id="connectionDot" class="dot"></span><div><strong id="connectionStatus">Nicht verbunden</strong><small id="deviceName">FTMS-Laufband auswählen</small></div></div>
+      <div class="connection-actions"><button id="connect" class="primary" type="button">Bluetooth verbinden</button><button id="disconnect" class="quiet" type="button" hidden>Trennen</button></div>
+    </section>
+
+    <main class="main-grid">
+      <section class="video-card card" aria-labelledby="videoHeading">
+        <div class="section-heading"><h1 id="videoHeading">Dein Laufvideo</h1><span id="videoSource" class="small-badge">Noch kein Video</span></div>
+        <div class="source-actions">
+          <label class="button file-button" for="fileInput">↑ Video vom iPhone<input id="fileInput" type="file" accept="video/*" hidden></label>
+          <button id="showLink" class="secondary" type="button" aria-expanded="false" aria-controls="linkPanel">▶ YouTube / Link</button>
+        </div>
+        <form id="linkPanel" class="link-panel" hidden>
+          <a class="youtube-search" href="https://www.youtube.com/results?search_query=virtual+walking+4k" target="_blank" rel="noopener noreferrer">Laufvideos auf YouTube suchen ↗</a>
+          <p class="link-help">Bei YouTube: <strong>Teilen → Link kopieren.</strong><br>Dann zu VirtualWalking zurückkehren. Dasselbe Video zuerst über YouTube auf den Fernseher übertragen und hier das Cast-Symbol antippen.</p>
+          <button id="pasteLink" class="primary link-paste" type="button">Kopierten Link übernehmen</button>
+          <p id="linkStatus" class="link-feedback" role="status" aria-live="polite">Der kopierte Link wird im Player darunter geöffnet. Zum Abspielen dort ▶ drücken.</p>
+          <label for="videoUrl">YouTube-Link oder direkter HTTPS-Videolink</label>
+          <div class="input-action"><input id="videoUrl" type="url" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="https://www.youtube.com/watch?v=…"><button class="secondary" type="submit">Öffnen</button></div>
+          <small>Alternativ: das Eingabefeld länger berühren, „Einfügen“ wählen und „Öffnen“ antippen.</small>
+        </form>
+        <div class="video-viewport" id="videoViewport">
+          <video id="video" controls playsinline webkit-playsinline preload="metadata" hidden></video>
+          <div id="youtube" hidden></div>
+          <div id="videoPlaceholder" class="video-placeholder"><svg viewBox="0 0 160 100" aria-hidden="true"><path d="M0 93 42 43l30 28 32-50 56 72" fill="none" stroke="#33564e" stroke-width="4"/><path d="m72 100 8-25 8-18 8-10" fill="none" stroke="#b9f579" stroke-width="3"/><circle cx="38" cy="23" r="8" fill="#b9f579"/></svg><strong>Deine nächste Strecke wartet</strong><span>Wähle ein Video oder einen YouTube-Link.</span></div>
+        </div>
+        <div class="video-caption"><strong id="videoTitle">Noch kein Laufvideo gewählt</strong><span id="videoStatus" role="status">Bereit für dein Video.</span></div>
+        <div class="sync-summary"><span id="syncDot" class="dot"></span><div><strong id="syncStatus">Tempoanpassung bereit</strong><small id="rateFeedback">Video und Laufband verbinden.</small></div><span id="rateValue" class="rate-value">—</span></div>
+      </section>
+
+      <section class="training-card card" aria-labelledby="trainingHeading">
+        <div class="section-heading"><h2 id="trainingHeading">Dein Training</h2><span id="trainingStatus" class="small-badge">Bereit</span></div>
+        <div class="speed-stat"><span>GESCHWINDIGKEIT</span><div><strong id="speed">—</strong><small>km/h</small></div></div>
+        <div class="stats-grid">
+          <div><span>Strecke</span><strong id="distance">0,00 <small>km</small></strong></div>
+          <div><span>Trainingszeit</span><strong id="duration">00:00</strong></div>
+          <div><span>Ø Geschwindigkeit</span><strong id="average">0,0 <small>km/h</small></strong></div>
+          <div><span>Kalorien ≈</span><strong id="calories">— <small>kcal</small></strong></div>
+        </div>
+        <div class="training-actions"><button id="start" class="primary" type="button" disabled>▶ Training starten</button><button id="pause" class="secondary" type="button" disabled>Pause</button><button id="finish" class="quiet" type="button" disabled>Beenden</button></div>
+        <p id="trainingHint" class="small-note">Verbinde das Laufband und wähle ein Video. „Training starten“ prüft den gemeinsamen Start.</p>
+        <p id="controlIssue" class="small-note control-issue" role="status" hidden></p>
+        <p id="controlHint" class="small-note" hidden>Der Sicherheitsschlüssel muss eingesteckt sein. Bei Bluetooth-Abbruch oder App-Wechsel das Laufband am Gerät anhalten. Der App-Stopp ersetzt keinen Notstopp.</p>
+      </section>
+    </main>
+
+    <div id="message" class="message" role="status" aria-live="polite">Bereit. Verbinde dein Laufband oder wähle ein Video.</div>
+
+    <div class="details-grid">
+      <details class="card settings" open>
+        <summary>Video ans Lauftempo anpassen</summary>
+        <label class="toggle"><span>Automatische Tempoanpassung</span><input id="syncEnabled" type="checkbox" role="switch" checked></label>
+        <label class="toggle"><span>Video bei Stillstand pausieren</span><input id="pauseAtZero" type="checkbox" role="switch" checked></label>
+        <label class="reference" for="referenceSpeed"><span>Normales Videotempo bei<small>Referenzgeschwindigkeit deiner Laufstrecke</small></span><span class="number-unit"><input id="referenceSpeed" required type="number" min="1" max="15" step="0.5" value="4" inputmode="decimal"><span>km/h</span></span></label>
+        <p class="small-note">YouTube bietet je nach Video nur bestimmte Tempostufen. Angefordertes und tatsächlich gemeldetes Videotempo werden oben angezeigt.</p>
+      </details>
+      <details class="card settings">
+        <summary>Persönliche Angaben</summary>
+        <p class="small-note">Optional und nur hier gespeichert. Das Gewicht dient der groben Kalorienschätzung.</p>
+        <div class="profile-grid"><label for="weight">Gewicht (kg)<input id="weight" type="number" min="25" max="300" step="0.1" inputmode="decimal" placeholder="optional"></label><label for="height">Größe (cm)<input id="height" type="number" min="100" max="250" step="1" inputmode="numeric" placeholder="optional"></label><label for="age">Alter (Jahre)<input id="age" type="number" min="10" max="120" step="1" inputmode="numeric" placeholder="optional"></label><label for="gender">Geschlecht<select id="gender"><option value="">Keine Angabe</option><option value="female">Weiblich</option><option value="male">Männlich</option><option value="diverse">Divers</option></select></label></div>
+        <p id="profileStatus" class="small-note" role="status">Änderungen werden automatisch lokal gespeichert.</p>
+      </details>
+      <details class="card settings history-settings">
+        <summary>Meine Trainingseinheiten <span id="historyCount" class="count">0</span></summary>
+        <div id="history" class="history"><p class="small-note">Noch keine gespeicherten Einheiten.</p></div>
+        <div class="history-actions"><button id="export" class="secondary" type="button">CSV exportieren</button><button id="clearHistory" class="quiet" type="button">Historie löschen</button></div>
+      </details>
+    </div>
+    <footer>Trainingsdaten und persönliche Angaben bleiben in diesem Browser.<br>iPhone-Testversion 0.3.0 · Gemeinsamer Start mit kompatiblen FTMS-Laufbändern</footer>
+  </div>
+</body>
+</html>

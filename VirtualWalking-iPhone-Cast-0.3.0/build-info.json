@@ -1,0 +1,12 @@
+{
+  "version": "0.3.0",
+  "status": "source-only-uncompiled",
+  "upstream": "VirtualWalking Bluefy 0.1.4",
+  "upstream_files": {
+    "core.js": "c35b3c28e4a561cd365e7dd3d987a4a1e583eee9b8463128e9c841d604d80892",
+    "bluetooth.js": "bf033d32d586eb684b2456c3b5a2824c3249318ef752fd7074bfdc70bb0e165f",
+    "joint-start.js": "79ca1f5a7ed65db6048437d2c27b57d263a3b6edf917be9712bc727472febb80"
+  },
+  "receiver_app_id": "233637DE",
+  "cast_sdk": "4.8.6"
+}

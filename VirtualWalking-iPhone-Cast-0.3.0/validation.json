@@ -1,0 +1,12 @@
+{
+  "version": "0.3.0",
+  "new_behavior_tests_passed": 17,
+  "objective_c_grammar": "passed",
+  "xcode_project_references": "passed",
+  "plist_and_scheme": "passed",
+  "cast_api_header_check": "passed",
+  "unchanged_ftms_modules": "passed",
+  "native_xcode_compile": false,
+  "native_device_test": false,
+  "philips_youtube_session_test": false
+}

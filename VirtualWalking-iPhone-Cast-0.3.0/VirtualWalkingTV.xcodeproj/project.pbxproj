@@ -1,0 +1,247 @@
+// !$*UTF8*$!
+{
+	"archiveVersion" = "1";
+	"classes" = {
+	};
+	"objectVersion" = "56";
+	"objects" = {
+"A31AA3E6EBD25CE52A59FF01" = { isa = PBXFileReference; lastKnownFileType = folder; path = Web; sourceTree = "<group>"; };
+"A31AA3E6EBD25CE52A59FF02" = { isa = PBXBuildFile; fileRef = "A31AA3E6EBD25CE52A59FF01"; };
+"A31AA3E6EBD25CE52A59FF03" = { isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+"A31AA3E6EBD25CE52A59FF04" = { isa = PBXBuildFile; fileRef = "A31AA3E6EBD25CE52A59FF03"; };
+		"68A4CA32AB1B95906DE28C11" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.c.objc";
+			"path" = "main.m";
+			"sourceTree" = "<group>";
+		};
+		"BDF770F5E1A0A0EE7AF13193" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "text.plist.xml";
+			"path" = "Info.plist";
+			"sourceTree" = "<group>";
+		};
+		"5A2B611775BB0607649C71F5" = {
+			"isa" = "PBXFileReference";
+			"explicitFileType" = "wrapper.application";
+			"includeInIndex" = "0";
+			"path" = "VirtualWalkingTV.app";
+			"sourceTree" = "BUILT_PRODUCTS_DIR";
+		};
+		"34DE7CA1E66C93FCA0C2F80B" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "68A4CA32AB1B95906DE28C11";
+		};
+		"236A29A975B802B66184CF84" = {
+			"isa" = "PBXBuildFile";
+			"productRef" = "D79C050A9C1900734F4B95FF";
+		};
+		"E50290A24C49A459B43487C5" = {
+			"isa" = "PBXGroup";
+			"children" = (
+"A31AA3E6EBD25CE52A59FF01", "A31AA3E6EBD25CE52A59FF03",
+				"1BDBD24583AAF7F81F76B976",
+				"FBDC4F23F93125BBEEAE800C",
+			);
+			"sourceTree" = "<group>";
+		};
+		"1BDBD24583AAF7F81F76B976" = {
+			"isa" = "PBXGroup";
+			"children" = (
+				"68A4CA32AB1B95906DE28C11",
+				"BDF770F5E1A0A0EE7AF13193",
+			);
+			"path" = "VirtualWalkingTV";
+			"sourceTree" = "<group>";
+		};
+		"FBDC4F23F93125BBEEAE800C" = {
+			"isa" = "PBXGroup";
+			"children" = (
+				"5A2B611775BB0607649C71F5",
+			);
+			"name" = "Products";
+			"sourceTree" = "<group>";
+		};
+		"BCE16DD0260827ECF338C787" = {
+			"isa" = "PBXSourcesBuildPhase";
+			"buildActionMask" = "2147483647";
+			"files" = (
+				"34DE7CA1E66C93FCA0C2F80B",
+			);
+			"runOnlyForDeploymentPostprocessing" = "0";
+		};
+		"7561BFB015D8F536760CB671" = {
+			"isa" = "PBXFrameworksBuildPhase";
+			"buildActionMask" = "2147483647";
+			"files" = (
+"A31AA3E6EBD25CE52A59FF04",
+				"236A29A975B802B66184CF84",
+			);
+			"runOnlyForDeploymentPostprocessing" = "0";
+		};
+		"0189424A5A60FED329FA868E" = {
+			"isa" = "PBXResourcesBuildPhase";
+			"buildActionMask" = "2147483647";
+			"files" = (
+"A31AA3E6EBD25CE52A59FF02",
+			);
+			"runOnlyForDeploymentPostprocessing" = "0";
+		};
+		"582681C2EAE02B3F3D399C0C" = {
+			"isa" = "XCRemoteSwiftPackageReference";
+			"repositoryURL" = "https://github.com/googlecast/google-cast-ios-sdk";
+			"requirement" = {
+				"kind" = "exactVersion";
+				"version" = "4.8.6";
+			};
+		};
+		"D79C050A9C1900734F4B95FF" = {
+			"isa" = "XCSwiftPackageProductDependency";
+			"package" = "582681C2EAE02B3F3D399C0C";
+			"productName" = "GoogleCastStatic";
+		};
+		"0E8A3AD980EC179856012B7E" = {
+			"isa" = "PBXNativeTarget";
+			"buildConfigurationList" = "B483F6EB73610DE752E457A0";
+			"buildPhases" = (
+				"BCE16DD0260827ECF338C787",
+				"7561BFB015D8F536760CB671",
+				"0189424A5A60FED329FA868E",
+			);
+			"buildRules" = (
+			);
+			"dependencies" = (
+			);
+			"name" = "VirtualWalkingTV";
+			"packageProductDependencies" = (
+				"D79C050A9C1900734F4B95FF",
+			);
+			"productName" = "VirtualWalkingTV";
+			"productReference" = "5A2B611775BB0607649C71F5";
+			"productType" = "com.apple.product-type.application";
+		};
+		"89E1FD6268CC0F221A2BE178" = {
+			"isa" = "XCBuildConfiguration";
+			"buildSettings" = {
+				"ALWAYS_SEARCH_USER_PATHS" = "NO";
+				"CLANG_ENABLE_MODULES" = "YES";
+				"CLANG_ENABLE_OBJC_ARC" = "YES";
+				"GCC_C_LANGUAGE_STANDARD" = "gnu17";
+				"IPHONEOS_DEPLOYMENT_TARGET" = "16.0";
+				"SDKROOT" = "iphoneos";
+				"GCC_OPTIMIZATION_LEVEL" = "0";
+			};
+			"name" = "Debug";
+		};
+		"7082CC0B6FC1282FCEABD07A" = {
+			"isa" = "XCBuildConfiguration";
+			"buildSettings" = {
+				"CODE_SIGN_STYLE" = "Automatic";
+				"CURRENT_PROJECT_VERSION" = "1";
+				"GENERATE_INFOPLIST_FILE" = "NO";
+				"INFOPLIST_FILE" = "VirtualWalkingTV/Info.plist";
+				"LD_RUNPATH_SEARCH_PATHS" = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"MARKETING_VERSION" = "0.3.0";
+				"OTHER_LDFLAGS" = (
+					"$(inherited)",
+					"-ObjC", "-framework", "CoreBluetooth", "-framework", "SafariServices",
+				);
+				"PRODUCT_BUNDLE_IDENTIFIER" = "org.virtualwalking.tvprobe";
+				"PRODUCT_NAME" = "$(TARGET_NAME)";
+				"SUPPORTED_PLATFORMS" = "iphoneos iphonesimulator";
+				"SUPPORTS_MACCATALYST" = "NO";
+				"TARGETED_DEVICE_FAMILY" = "1";
+			};
+			"name" = "Debug";
+		};
+		"E6DE6C99132752C914FEF632" = {
+			"isa" = "XCBuildConfiguration";
+			"buildSettings" = {
+				"ALWAYS_SEARCH_USER_PATHS" = "NO";
+				"CLANG_ENABLE_MODULES" = "YES";
+				"CLANG_ENABLE_OBJC_ARC" = "YES";
+				"GCC_C_LANGUAGE_STANDARD" = "gnu17";
+				"IPHONEOS_DEPLOYMENT_TARGET" = "16.0";
+				"SDKROOT" = "iphoneos";
+				"GCC_OPTIMIZATION_LEVEL" = "s";
+			};
+			"name" = "Release";
+		};
+		"639A7CA24D39909E713B47F7" = {
+			"isa" = "XCBuildConfiguration";
+			"buildSettings" = {
+				"CODE_SIGN_STYLE" = "Automatic";
+				"CURRENT_PROJECT_VERSION" = "1";
+				"GENERATE_INFOPLIST_FILE" = "NO";
+				"INFOPLIST_FILE" = "VirtualWalkingTV/Info.plist";
+				"LD_RUNPATH_SEARCH_PATHS" = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"MARKETING_VERSION" = "0.3.0";
+				"OTHER_LDFLAGS" = (
+					"$(inherited)",
+					"-ObjC", "-framework", "CoreBluetooth", "-framework", "SafariServices",
+				);
+				"PRODUCT_BUNDLE_IDENTIFIER" = "org.virtualwalking.tvprobe";
+				"PRODUCT_NAME" = "$(TARGET_NAME)";
+				"SUPPORTED_PLATFORMS" = "iphoneos iphonesimulator";
+				"SUPPORTS_MACCATALYST" = "NO";
+				"TARGETED_DEVICE_FAMILY" = "1";
+			};
+			"name" = "Release";
+		};
+		"41A2CC2D5321B7BB2E956CA5" = {
+			"isa" = "XCConfigurationList";
+			"buildConfigurations" = (
+				"89E1FD6268CC0F221A2BE178",
+				"E6DE6C99132752C914FEF632",
+			);
+			"defaultConfigurationIsVisible" = "0";
+			"defaultConfigurationName" = "Release";
+		};
+		"B483F6EB73610DE752E457A0" = {
+			"isa" = "XCConfigurationList";
+			"buildConfigurations" = (
+				"7082CC0B6FC1282FCEABD07A",
+				"639A7CA24D39909E713B47F7",
+			);
+			"defaultConfigurationIsVisible" = "0";
+			"defaultConfigurationName" = "Release";
+		};
+		"98F54143AB4E86B28C3AFEE0" = {
+			"isa" = "PBXProject";
+			"attributes" = {
+				"LastUpgradeCheck" = "1600";
+				"TargetAttributes" = {
+					"0E8A3AD980EC179856012B7E" = {
+						"CreatedOnToolsVersion" = "16.0";
+					};
+				};
+			};
+			"buildConfigurationList" = "41A2CC2D5321B7BB2E956CA5";
+			"compatibilityVersion" = "Xcode 14.0";
+			"developmentRegion" = "de";
+			"hasScannedForEncodings" = "0";
+			"knownRegions" = (
+				"de",
+				"en",
+				"Base",
+			);
+			"mainGroup" = "E50290A24C49A459B43487C5";
+			"packageReferences" = (
+				"582681C2EAE02B3F3D399C0C",
+			);
+			"productRefGroup" = "FBDC4F23F93125BBEEAE800C";
+			"projectDirPath" = "";
+			"projectRoot" = "";
+			"targets" = (
+				"0E8A3AD980EC179856012B7E",
+			);
+		};
+	};
+	"rootObject" = "98F54143AB4E86B28C3AFEE0";
+}

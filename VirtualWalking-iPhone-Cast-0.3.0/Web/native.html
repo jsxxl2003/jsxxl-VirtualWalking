@@ -1,0 +1,793 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#09191f">
+  <meta name="description" content="VirtualWalking für iPhone und Cast: FTMS-Laufbanddaten lesen, Laufvideos ans Tempo anpassen und Training lokal aufzeichnen.">
+  <meta name="apple-mobile-web-app-title" content="VirtualWalking">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>VirtualWalking iPhone · Testversion 0.3.0</title>
+  <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTYiIGZpbGw9IiMwOTE5MWYiLz48Y2lyY2xlIGN4PSIzMiIgY3k9IjMyIiByPSIyMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjYjlmNTc5IiBzdHJva2Utd2lkdGg9IjMiLz48Y2lyY2xlIGN4PSIzMiIgY3k9IjMyIiByPSIxMyIgZmlsbD0iI2I5ZjU3OSIvPjwvc3ZnPgoK" type="image/svg+xml">
+  <style>:root{color-scheme:dark;--bg:#09191f;--panel:#10252c;--panel-2:#173139;--line:#2a454e;--text:#eef5f5;--muted:#a0b5bd;--green:#b9f579;--danger:#ffb3a9;--radius:18px;font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 0 0,#17403770,transparent 58%),var(--bg);color:var(--text);font-size:15px;line-height:1.4;-webkit-text-size-adjust:100%}button,input,select{font:inherit}button,a,label,input,select{-webkit-tap-highlight-color:transparent}button,.button{min-height:44px;padding:10px 13px;border:1px solid var(--line);border-radius:11px;display:inline-flex;align-items:center;justify-content:center;gap:6px;text-align:center;text-decoration:none;color:var(--text);background:var(--panel-2);cursor:pointer;font-size:14px;font-weight:600}button:disabled{opacity:.4;cursor:default}.primary{background:var(--green);color:#102413;border-color:var(--green);font-weight:750}.secondary,.file-button{background:#1d3b43}.quiet{background:transparent;color:var(--muted)}button:hover:not(:disabled),.button:hover{border-color:var(--green)}:focus-visible{outline:2px solid var(--green);outline-offset:3px}a{color:var(--green);text-underline-offset:3px}input,select{min-width:0;min-height:44px;padding:9px 11px;border:1px solid #47616b;border-radius:10px;background:#091b22;color:var(--text);font-size:16px}input::placeholder{color:#8ea6b0}input[type=checkbox]{min-height:0;padding:0;accent-color:var(--green)}[hidden]{display:none!important}.app-shell{max-width:1180px;margin:auto;padding:max(16px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))}.app-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.brand{display:flex;align-items:center;gap:9px;min-width:0}.brand strong{display:block;font-size:21px;line-height:1.1;letter-spacing:-.7px}.brand small{display:block;font-size:10px;color:var(--muted);margin-top:3px}.read-badge{font-size:10px;color:#c8dfd3;border:1px solid #466353;border-radius:30px;padding:5px 7px;white-space:nowrap}.intro{color:var(--muted);font-size:12px;max-width:620px;margin:0 0 13px;line-height:1.45}.card{border:1px solid var(--line);border-radius:var(--radius);background:linear-gradient(130deg,#122a31,#0e2027);padding:14px;min-width:0}.connection{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-bottom:12px}.connection-info{display:flex;align-items:center;gap:9px;min-width:0}.connection-info strong{font-size:13px;display:block}.connection-info small{display:block;font-size:11px;color:var(--muted);overflow-wrap:anywhere}.connection-actions{display:flex;gap:7px;flex-shrink:0}.connection-actions button{font-size:12px;padding:9px 10px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#84999e;flex-shrink:0}.dot.active{background:var(--green);box-shadow:0 0 9px #b9f57955}.main-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(315px,1fr);gap:12px;align-items:start}.section-heading{display:flex;align-items:center;justify-content:space-between;gap:7px;margin-bottom:12px}h1,h2{font-size:18px;margin:0;line-height:1.2;letter-spacing:-.3px}.small-badge{font-size:10px;line-height:1.3;color:var(--muted);border:1px solid var(--line);border-radius:30px;padding:4px 7px;white-space:nowrap}.source-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}.video-viewport{aspect-ratio:16/9;min-height:200px;background:#051015;border-radius:12px;overflow:hidden;position:relative}.video-viewport video,.video-viewport #youtube,.video-viewport iframe{width:100%;height:100%;position:absolute;inset:0;object-fit:contain;border:0}.video-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;background:linear-gradient(145deg,#14332f,#0e232c);padding:12px;text-align:center}.video-placeholder svg{width:140px;height:90px}.video-placeholder strong{font-size:14px}.video-placeholder span{font-size:12px;color:var(--muted)}.video-caption{display:flex;flex-direction:column;gap:3px;padding:10px 0;font-size:12px}.video-caption strong{overflow-wrap:anywhere}.video-caption>span{color:var(--muted);font-size:11px;min-height:16px}.sync-summary{border-top:1px solid var(--line);padding-top:10px;display:flex;align-items:center;gap:8px;min-height:48px}.sync-summary>div{min-width:0;flex:1}.sync-summary strong{display:block;font-size:12px}.sync-summary small{display:block;font-size:10px;color:var(--muted);line-height:1.4}.rate-value{font-size:22px;letter-spacing:-.5px;font-weight:700;color:var(--green);font-variant-numeric:tabular-nums}.link-panel{padding:11px;background:#092027;border:1px solid var(--line);border-radius:12px;margin-bottom:12px}.link-panel>label{display:block;font-size:12px;margin-bottom:7px}.link-panel small{display:block;font-size:11px;margin-top:8px;color:var(--muted)}.link-panel a{font-size:12px;display:inline-block;margin-top:9px}.input-action{display:flex;gap:7px}.input-action input{flex:1;width:100%}.input-action button{flex-shrink:0}.speed-stat{margin:2px 0 10px}.speed-stat>span{font-size:10px;letter-spacing:1px;color:var(--muted)}.speed-stat strong{font-size:46px;line-height:1.15;letter-spacing:-2px;font-weight:750;font-variant-numeric:tabular-nums}.speed-stat small{font-size:13px;margin-left:6px;color:var(--muted)}.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.stats-grid>div{min-width:0;background:#173039;border:1px solid #2b454f;border-radius:11px;padding:9px 10px}.stats-grid>div>span{display:block;font-size:10px;color:var(--muted);margin-bottom:3px}.stats-grid strong{font-size:21px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums}.stats-grid small{font-size:10px;font-weight:400;color:var(--muted);letter-spacing:0}.training-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:13px}.training-actions .primary{flex:1}.training-actions button{padding-inline:10px;font-size:12px}.small-note{font-size:11px;line-height:1.5;color:var(--muted);margin:10px 0 0}.message{font-size:12px;color:#c6d9d5;line-height:1.5;padding:11px 4px;min-height:40px;overflow-wrap:anywhere}.message.error{color:var(--danger)}.details-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}.settings{padding:0 14px 14px}.settings>summary{cursor:pointer;padding:14px 0;font-size:13px;font-weight:650;list-style-position:inside}.settings:not([open]){padding-bottom:0}.toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:46px;font-size:12px}.toggle input{width:20px;height:20px;margin:0;flex-shrink:0}.reference{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--line);padding-top:12px;margin-top:5px;font-size:12px}.reference>span:first-child{min-width:0}.reference small{display:block;color:var(--muted);font-size:10px;margin-top:3px}.number-unit{display:flex;align-items:center;gap:6px;flex-shrink:0}.number-unit input{width:69px}.number-unit>span{font-size:11px;color:var(--muted)}.profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.profile-grid label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted);min-width:0}.profile-grid input,.profile-grid select{width:100%}.history-settings{grid-column:1/-1}.count{font-size:10px;color:var(--green);font-variant-numeric:tabular-nums}.history{max-height:330px;overflow:auto;overscroll-behavior:contain}.history-entry{padding:11px 0;border-bottom:1px solid var(--line);font-size:13px}.history-entry small{display:block;color:var(--muted);font-size:11px;margin-top:3px}.history-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.history-actions button{font-size:12px}.notice{padding:12px;border:1px solid #8c7958;background:#342c1e;border-radius:12px;font-size:12px;margin-bottom:12px}.notice p{margin:6px 0}.notice a{display:inline-block;min-height:30px;padding-top:5px}footer{color:#829ba5;font-size:10px;line-height:1.7;padding:18px 0 0;text-align:center}
+.video-viewport{width:100%}
+.control-issue{overflow-wrap:anywhere;color:var(--danger)}
+.link-panel .youtube-search{display:flex;align-items:center;min-height:44px;margin:0;font-size:13px}.link-help{font-size:12px;line-height:1.6;color:var(--muted);margin:4px 0 11px}.link-help strong{color:var(--text)}.link-paste{width:100%}.link-feedback{font-size:11px;line-height:1.5;color:var(--muted);margin:8px 0 14px}.link-feedback.error{color:var(--danger)}
+@media(max-width:720px){.main-grid,.details-grid{grid-template-columns:minmax(0,1fr)}.app-shell{max-width:520px}.card{padding:12px}.settings{padding:0 12px 12px}.settings:not([open]){padding-bottom:0}.connection{padding:11px 12px}.section-heading{margin-bottom:9px}.source-actions{margin-bottom:10px;gap:7px}.source-actions button,.source-actions .button{font-size:12px;padding-inline:8px}.video-caption{padding-block:8px}.training-card .section-heading{margin-bottom:5px}.training-card{padding-top:11px}.speed-stat{margin-bottom:8px}.speed-stat strong{font-size:40px}.stats-grid strong{font-size:20px}.training-actions{margin-top:10px}.details-grid{gap:10px}.video-placeholder svg{width:112px;height:65px}.connection-actions button{font-size:11px}.connection-actions{gap:5px}.brand strong{font-size:20px}.read-badge{font-size:9px;padding-inline:6px}.training-actions .primary{flex:1 1 135px}}
+@media(max-width:360px){.read-badge{display:none}.connection{flex-wrap:wrap}.connection-actions{width:100%}.connection-actions .primary{flex:1}.stats-grid strong{font-size:18px}.source-actions{grid-template-columns:1fr}}
+@media(orientation:landscape) and (max-height:600px){.app-shell{max-width:1180px;padding-top:max(9px,env(safe-area-inset-top))}.app-header{margin-bottom:7px}.intro{display:none}.connection{padding:8px 12px;margin-bottom:9px}.main-grid{grid-template-columns:minmax(0,1.5fr) minmax(270px,1fr)}.details-grid{grid-template-columns:1fr 1fr}.video-viewport{height:clamp(200px,62dvh,420px);aspect-ratio:auto}.video-card .section-heading{margin-bottom:7px}.source-actions{margin-bottom:8px}.speed-stat strong{font-size:34px}.speed-stat{margin-bottom:5px}.stats-grid{gap:6px}.stats-grid>div{padding:7px 9px}.stats-grid strong{font-size:19px}.training-actions{margin-top:8px}.app-header .brand strong{font-size:19px}}
+</style>
+  
+  
+  
+  
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTYiIGZpbGw9IiMwOTE5MWYiLz48Y2lyY2xlIGN4PSIzMiIgY3k9IjMyIiByPSIyMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjYjlmNTc5IiBzdHJva2Utd2lkdGg9IjMiLz48Y2lyY2xlIGN4PSIzMiIgY3k9IjMyIiByPSIxMyIgZmlsbD0iI2I5ZjU3OSIvPjwvc3ZnPgoK" alt="" width="34" height="34"><div><strong>VirtualWalking</strong><small>iPhone · Native Cast-Entwicklung 0.3.0</small></div></div>
+      <span id="controlMode" class="read-badge">FTMS · Lesemodus</span>
+    </header>
+    <p id="tvStatus" class="notice" role="status">TV: Über das Cast-Symbol oben verbinden.</p>
+    <p class="intro">mit Bluetooth verbinden, wähle ein Laufvideo und zeichne dein Training lokal auf</p>
+
+    <aside id="browserNotice" class="notice" hidden>
+      <strong>Für die Laufband-Verbindung bitte Bluefy verwenden.</strong>
+      <p>Dieser Browser bietet keinen Bluetooth-Zugriff. Öffne dieselbe Adresse in Bluefy auf deinem iPhone.</p>
+      <a href="https://apps.apple.com/de/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener noreferrer">Bluefy im App Store öffnen ↗</a>
+    </aside>
+
+    <section class="connection card" aria-label="Bluetooth-Laufband">
+      <div class="connection-info"><span id="connectionDot" class="dot"></span><div><strong id="connectionStatus">Nicht verbunden</strong><small id="deviceName">FTMS-Laufband auswählen</small></div></div>
+      <div class="connection-actions"><button id="connect" class="primary" type="button">Bluetooth verbinden</button><button id="disconnect" class="quiet" type="button" hidden>Trennen</button></div>
+    </section>
+
+    <main class="main-grid">
+      <section class="video-card card" aria-labelledby="videoHeading">
+        <div class="section-heading"><h1 id="videoHeading">Dein Laufvideo</h1><span id="videoSource" class="small-badge">Noch kein Video</span></div>
+        <div class="source-actions">
+          <label class="button file-button" for="fileInput">↑ Video vom iPhone<input id="fileInput" type="file" accept="video/*" hidden></label>
+          <button id="showLink" class="secondary" type="button" aria-expanded="false" aria-controls="linkPanel">▶ YouTube / Link</button>
+        </div>
+        <form id="linkPanel" class="link-panel" hidden>
+          <a class="youtube-search" href="https://www.youtube.com/results?search_query=virtual+walking+4k" target="_blank" rel="noopener noreferrer">Laufvideos auf YouTube suchen ↗</a>
+          <p class="link-help">Bei YouTube: <strong>Teilen → Link kopieren.</strong><br>Dann zu VirtualWalking zurückkehren. Dasselbe Video zuerst über YouTube auf den Fernseher übertragen und hier das Cast-Symbol antippen.</p>
+          <button id="pasteLink" class="primary link-paste" type="button">Kopierten Link übernehmen</button>
+          <p id="linkStatus" class="link-feedback" role="status" aria-live="polite">Der kopierte Link wird im Player darunter geöffnet. Zum Abspielen dort ▶ drücken.</p>
+          <label for="videoUrl">YouTube-Link oder direkter HTTPS-Videolink</label>
+          <div class="input-action"><input id="videoUrl" type="url" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="https://www.youtube.com/watch?v=…"><button class="secondary" type="submit">Öffnen</button></div>
+          <small>Alternativ: das Eingabefeld länger berühren, „Einfügen“ wählen und „Öffnen“ antippen.</small>
+        </form>
+        <div class="video-viewport" id="videoViewport">
+          <video id="video" controls playsinline webkit-playsinline preload="metadata" hidden></video>
+          <div id="youtube" hidden></div>
+          <div id="videoPlaceholder" class="video-placeholder"><svg viewBox="0 0 160 100" aria-hidden="true"><path d="M0 93 42 43l30 28 32-50 56 72" fill="none" stroke="#33564e" stroke-width="4"/><path d="m72 100 8-25 8-18 8-10" fill="none" stroke="#b9f579" stroke-width="3"/><circle cx="38" cy="23" r="8" fill="#b9f579"/></svg><strong>Deine nächste Strecke wartet</strong><span>Wähle ein Video oder einen YouTube-Link.</span></div>
+        </div>
+        <div class="video-caption"><strong id="videoTitle">Noch kein Laufvideo gewählt</strong><span id="videoStatus" role="status">Bereit für dein Video.</span></div>
+        <div class="sync-summary"><span id="syncDot" class="dot"></span><div><strong id="syncStatus">Tempoanpassung bereit</strong><small id="rateFeedback">Video und Laufband verbinden.</small></div><span id="rateValue" class="rate-value">—</span></div>
+      </section>
+
+      <section class="training-card card" aria-labelledby="trainingHeading">
+        <div class="section-heading"><h2 id="trainingHeading">Dein Training</h2><span id="trainingStatus" class="small-badge">Bereit</span></div>
+        <div class="speed-stat"><span>GESCHWINDIGKEIT</span><div><strong id="speed">—</strong><small>km/h</small></div></div>
+        <div class="stats-grid">
+          <div><span>Strecke</span><strong id="distance">0,00 <small>km</small></strong></div>
+          <div><span>Trainingszeit</span><strong id="duration">00:00</strong></div>
+          <div><span>Ø Geschwindigkeit</span><strong id="average">0,0 <small>km/h</small></strong></div>
+          <div><span>Kalorien ≈</span><strong id="calories">— <small>kcal</small></strong></div>
+        </div>
+        <div class="training-actions"><button id="start" class="primary" type="button" disabled>▶ Training starten</button><button id="pause" class="secondary" type="button" disabled>Pause</button><button id="finish" class="quiet" type="button" disabled>Beenden</button></div>
+        <p id="trainingHint" class="small-note">Verbinde das Laufband und wähle ein Video. „Training starten“ prüft den gemeinsamen Start.</p>
+        <p id="controlIssue" class="small-note control-issue" role="status" hidden></p>
+        <p id="controlHint" class="small-note" hidden>Der Sicherheitsschlüssel muss eingesteckt sein. Bei Bluetooth-Abbruch oder App-Wechsel das Laufband am Gerät anhalten. Der App-Stopp ersetzt keinen Notstopp.</p>
+      </section>
+    </main>
+
+    <div id="message" class="message" role="status" aria-live="polite">Bereit. Verbinde dein Laufband oder wähle ein Video.</div>
+
+    <div class="details-grid">
+      <details class="card settings" open>
+        <summary>Video ans Lauftempo anpassen</summary>
+        <label class="toggle"><span>Automatische Tempoanpassung</span><input id="syncEnabled" type="checkbox" role="switch" checked></label>
+        <label class="toggle"><span>Video bei Stillstand pausieren</span><input id="pauseAtZero" type="checkbox" role="switch" checked></label>
+        <label class="reference" for="referenceSpeed"><span>Normales Videotempo bei<small>Referenzgeschwindigkeit deiner Laufstrecke</small></span><span class="number-unit"><input id="referenceSpeed" required type="number" min="1" max="15" step="0.5" value="4" inputmode="decimal"><span>km/h</span></span></label>
+        <p class="small-note">YouTube bietet je nach Video nur bestimmte Tempostufen. Angefordertes und tatsächlich gemeldetes Videotempo werden oben angezeigt.</p>
+      </details>
+      <details class="card settings">
+        <summary>Persönliche Angaben</summary>
+        <p class="small-note">Optional und nur hier gespeichert. Das Gewicht dient der groben Kalorienschätzung.</p>
+        <div class="profile-grid"><label for="weight">Gewicht (kg)<input id="weight" type="number" min="25" max="300" step="0.1" inputmode="decimal" placeholder="optional"></label><label for="height">Größe (cm)<input id="height" type="number" min="100" max="250" step="1" inputmode="numeric" placeholder="optional"></label><label for="age">Alter (Jahre)<input id="age" type="number" min="10" max="120" step="1" inputmode="numeric" placeholder="optional"></label><label for="gender">Geschlecht<select id="gender"><option value="">Keine Angabe</option><option value="female">Weiblich</option><option value="male">Männlich</option><option value="diverse">Divers</option></select></label></div>
+        <p id="profileStatus" class="small-note" role="status">Änderungen werden automatisch lokal gespeichert.</p>
+      </details>
+      <details class="card settings history-settings">
+        <summary>Meine Trainingseinheiten <span id="historyCount" class="count">0</span></summary>
+        <div id="history" class="history"><p class="small-note">Noch keine gespeicherten Einheiten.</p></div>
+        <div class="history-actions"><button id="export" class="secondary" type="button">CSV exportieren</button><button id="clearHistory" class="quiet" type="button">Historie löschen</button></div>
+      </details>
+    </div>
+    <footer>Trainingsdaten und persönliche Angaben bleiben in diesem Browser.<br>iPhone-Testversion 0.3.0 · Gemeinsamer Start mit kompatiblen FTMS-Laufbändern</footer>
+  </div>
+<script>
+'use strict';
+(function(root){
+ const FTMS='00001826-0000-1000-8000-00805f9b34fb';
+ const TREADMILL_DATA='00002acd-0000-1000-8000-00805f9b34fb';
+ const MACHINE_STATUS='00002ada-0000-1000-8000-00805f9b34fb';
+ const CONTROL_POINT='00002ad9-0000-1000-8000-00805f9b34fb';
+ const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
+ function errorText(value,fallback='Der Browser hat keinen Fehlertext geliefert.',depth=0){
+  if(depth>3||value===undefined||value===null)return fallback;
+  if(typeof value==='string'){const text=value.trim();return text&&text!=='undefined'&&text!=='null'?text:fallback;}
+  if(typeof value==='number'||typeof value==='boolean')return String(value);
+  if(typeof value==='object'){
+   for(const field of ['message','error','reason','description','localizedDescription']){try{if(value[field]!==undefined&&value[field]!==value){const text=errorText(value[field],'',depth+1);if(text)return text;}}catch{}}
+   try{if(value.name&&value.name!=='Error')return String(value.name);if(value.code!==undefined)return 'Fehlercode '+String(value.code);}catch{}
+  }
+  return fallback;
+ }
+ function parseTreadmillData(view){
+  if(!(view instanceof DataView)||view.byteLength<2)throw Error('Unvollständiges FTMS-Datenpaket');
+  const flags=view.getUint16(0,true);let position=2;
+  const take=n=>{if(position+n>view.byteLength)throw Error('Unvollständiges FTMS-Datenpaket');const start=position;position+=n;return start;};
+  const speed=flags&1?null:view.getUint16(take(2),true)/100;
+  if(flags&2)take(2);
+  let distanceKm=null;
+  if(flags&4){const p=take(3);distanceKm=(view.getUint8(p)|(view.getUint8(p+1)<<8)|(view.getUint8(p+2)<<16))/1000;}
+  return {speed,distanceKm,flags};
+ }
+ function targetRate(speed,reference){return clamp(Number.isFinite(speed)&&Number.isFinite(reference)&&reference>0?speed/reference:1,.5,2);}
+ function nearestRate(target,rates){const allowed=[...new Set(rates.filter(n=>Number.isFinite(n)&&n>0))];if(!allowed.length)return null;return allowed.reduce((best,n)=>Math.abs(n-target)<Math.abs(best-target)?n:best);}
+ function formatTime(seconds){seconds=Math.max(0,Math.floor(seconds));const h=Math.floor(seconds/3600),m=Math.floor(seconds%3600/60),s=seconds%60;return h?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;}
+ function calories(weight,averageKmh,seconds){if(!Number.isFinite(weight)||weight<25||weight>300)return null;const met=averageKmh<1?1:averageKmh<3?2.5:averageKmh<5?3.5:averageKmh<6.5?4.3:averageKmh<8?6:8.3;return Math.round(met*3.5*weight/200*(seconds/60));}
+ class Workout{
+  constructor(now,distanceKm=null){this.running=true;this.startedAt=new Date().toISOString();this.elapsedMs=0;this.speedIntegral=0;this.estimatedKm=0;this.nativeKm=0;this.nativeSeen=Number.isFinite(distanceKm);this.lastNative=Number.isFinite(distanceKm)?distanceKm:null;this.lastTick=now;}
+  tick(now,speed,live=true){if(!this.running)return;const delta=Math.max(0,now-this.lastTick);this.lastTick=Math.max(now,this.lastTick);this.elapsedMs+=delta;const validSpeed=live&&Number.isFinite(speed)?Math.max(0,speed):0;this.speedIntegral+=validSpeed*delta;this.estimatedKm+=validSpeed*delta/3600000;}
+  telemetry(distanceKm){if(!this.running||!Number.isFinite(distanceKm))return;if(!this.nativeSeen){this.nativeKm=this.estimatedKm;this.nativeSeen=true;}if(this.lastNative!==null&&distanceKm>=this.lastNative)this.nativeKm+=distanceKm-this.lastNative;this.lastNative=distanceKm;}
+  pause(now,speed,live=true){this.tick(now,speed,live);this.running=false;}
+  resume(now,distanceKm=null){this.running=true;this.lastTick=now;this.lastNative=Number.isFinite(distanceKm)?distanceKm:null;}
+  get seconds(){return this.elapsedMs/1000;}
+  get distanceKm(){return Math.max(0,this.nativeSeen?this.nativeKm:this.estimatedKm);}
+  get averageKmh(){return this.elapsedMs?this.speedIntegral/this.elapsedMs:0;}
+ }
+ const api={FTMS,TREADMILL_DATA,MACHINE_STATUS,CONTROL_POINT,errorText,parseTreadmillData,targetRate,nearestRate,formatTime,calories,Workout};
+ if(typeof module!=='undefined'&&module.exports)module.exports=api;
+ root.VirtualWalkingCore=api;
+})(typeof window!=='undefined'?window:globalThis);
+
+</script>
+<script>
+'use strict';
+(function(root){
+ const core=typeof module!=='undefined'&&module.exports?require('./core.js'):root.VirtualWalkingCore;
+ class FTMSClient{
+  constructor({bluetooth,onConnection=()=>{},onData=()=>{},onStatus=()=>{},onError=()=>{},commandTimeout=5000}){this.bluetooth=bluetooth;this.onConnection=onConnection;this.onData=onData;this.onStatus=onStatus;this.onError=onError;this.device=null;this.listeners=[];this.pending=false;this.control=null;this.controlWriter=null;this.controlIssue='';this.controlGranted=false;this.uncertain=false;this.uncertainCommand=null;this.lastControlError='';this.operation=null;this.commandTimeout=commandTimeout;this.starting=false;}
+  get connected(){return !!this.device?.gatt?.connected;}
+  get canControl(){return this.connected&&!!this.control;}
+  get startBlockedReason(){
+   if(!this.uncertain)return '';
+   return this.uncertainCommand===0?'Die Steuerfreigabe ist fehlgeschlagen. Es wurde kein Laufband-Startbefehl gesendet. Bitte Bluetooth neu verbinden.':'Unklarer Laufband-Zustand nach einem unbestätigten Start-/Stoppbefehl. Bitte am Gerät prüfen und Bluetooth neu verbinden.';
+  }
+  async connect(){
+   if(this.pending)return;
+   if(!this.bluetooth?.requestDevice)throw Error('Bitte diese Seite in Bluefy öffnen, um Bluetooth zu verwenden.');
+   this.pending=true;
+   try{
+    if(this.device)this.disconnect();
+    const device=await this.bluetooth.requestDevice({filters:[{services:[core.FTMS]}],optionalServices:[core.FTMS]});
+    this.device=device;
+    const closed=()=>{if(this.device===device)this.disconnect();};device.addEventListener('gattserverdisconnected',closed);this.listeners.push([device,'gattserverdisconnected',closed]);
+    const server=await device.gatt.connect(),service=await server.getPrimaryService(core.FTMS);
+    const data=await service.getCharacteristic(core.TREADMILL_DATA);
+    const read=event=>{try{this.onData(core.parseTreadmillData(event.target.value));}catch(error){this.onError(error);}};
+    data.addEventListener('characteristicvaluechanged',read);this.listeners.push([data,'characteristicvaluechanged',read]);await data.startNotifications();
+    try{
+     const status=await service.getCharacteristic(core.MACHINE_STATUS);
+     const report=event=>{const v=event.target.value;if(v?.byteLength){const code=v.getUint8(0);if(code===0xff){this.controlGranted=false;this.operation?.finish(Error('Die Steuerfreigabe des Laufbands wurde entzogen.'));}this.onStatus({code,reason:v.byteLength>1?v.getUint8(1):null});}};
+     status.addEventListener('characteristicvaluechanged',report);this.listeners.push([status,'characteristicvaluechanged',report]);await status.startNotifications();
+    }catch{}
+    // Discovery and indication subscription never move the belt or request control.
+    let stage='Steuerkanal-Suche',channels=[];
+    try{
+     let point;
+     try{point=await service.getCharacteristic(core.CONTROL_POINT);}
+     catch(lookupError){
+      if(typeof service.getCharacteristics!=='function')throw lookupError;
+      const all=await service.getCharacteristics();
+      const normalize=value=>typeof value==='number'?value.toString(16):String(value||'').toLowerCase().replace(/^0x/,'');
+      channels=all.map(item=>normalize(item.uuid)).filter(Boolean);
+      point=all.find(item=>[core.CONTROL_POINT,'2ad9'].includes(normalize(item.uuid)));
+      if(!point)throw lookupError;
+     }
+     stage='Schreibzugriff';
+     // Prefer the compatibility API when a browser supplies it. Use one writer
+     // for the connection; never try another writer after an ambiguous failure.
+     const writer=typeof point.writeValue==='function'?'writeValue':typeof point.writeValueWithResponse==='function'?'writeValueWithResponse':null;
+     if(!writer)throw Error('Der Browser stellt für den FTMS-Steuerkanal keine bestätigte Schreibfunktion bereit.');
+     // Property flags alone cannot prove that the connection works. Require
+     // notification setup, then an actual FTMS response to Request Control.
+     stage='Steuerantworten abonnieren';
+     const response=event=>{
+      const value=event.target.value,op=this.operation;
+      if(!op||!value||value.byteLength<3||value.getUint8(0)!==0x80||value.getUint8(1)!==op.code)return;
+      op.response=value.getUint8(2);op.settle();
+     };
+     point.addEventListener('characteristicvaluechanged',response);this.listeners.push([point,'characteristicvaluechanged',response]);await point.startNotifications();
+     if(this.device===device&&device.gatt.connected){this.control=point;this.controlWriter=writer;this.controlIssue='';}
+    }catch(error){
+     this.control=null;this.controlWriter=null;
+     const detail=core.errorText(error).replace(/\s+/g,' ').slice(0,220);
+     const ids=channels.map(id=>id.replace(/^0000([0-9a-f]{4})-0000-1000-8000-00805f9b34fb$/,'$1')).slice(0,16);
+     this.controlIssue=stage+': '+(error?.name&&error.name!=='Error'?error.name+' – ':'')+detail+(ids.length?' · FTMS-Kanäle: '+ids.join(', '):'');
+    }
+    if(this.device!==device||!device.gatt.connected)throw Error('Die Bluetooth-Verbindung wurde unterbrochen.');
+    this.onConnection({connected:true,id:device.id||'',name:device.name||'Unbenanntes FTMS-Laufband',canControl:this.canControl});
+    return device;
+   }catch(error){this.disconnect();throw error;}
+   finally{this.pending=false;}
+  }
+  procedure(code,parameters=[],beforeWrite=()=>{}){
+   // Intentionally no speed, incline, reset, or vendor-specific commands.
+   if(!((code===0x00||code===0x07)&&parameters.length===0)&&!(code===0x08&&parameters.length===1&&[1,2].includes(parameters[0])))return Promise.reject(Error('Nicht erlaubter FTMS-Befehl.'));
+   if(!this.canControl)return Promise.reject(Error('Unsere App konnte den FTMS-Steuerkanal noch nicht öffnen. '+this.controlIssue));
+   if(this.operation)return Promise.reject(Error('Ein Laufband-Befehl wartet noch auf Bestätigung.'));
+   const point=this.control,device=this.device,writer=this.controlWriter;
+   const label=({0:'Steuerfreigabe (0x00)',7:'Laufband-Start (0x07)',8:'Laufband-Pause/Stopp (0x08)'})[code]+' / '+writer;
+   return new Promise((resolve,reject)=>{
+    const op={code,response:null,written:false,sent:false,finish:(...errors)=>{
+     if(this.operation!==op)return;clearTimeout(op.timer);this.operation=null;
+     if(errors.length)reject(Error(core.errorText(errors[0])));else resolve();
+    },settle:()=>{
+     if(this.operation!==op||this.device!==device)return;
+     if(!op.written||op.response===null)return;
+     if(op.response===1){if(code===0)this.controlGranted=true;op.finish();}
+     else{if(op.response===5)this.controlGranted=false;const messages={2:'Das Laufband unterstützt diesen Start-/Stoppbefehl nicht.',3:'Das Laufband hat den Befehl als ungültig abgelehnt.',4:'Das Laufband hat den Befehl abgelehnt. Zustand und Sicherheitsschlüssel am Gerät prüfen.',5:'Das Laufband erlaubt die Steuerung gerade nicht. Andere Trainings-App trennen und am Gerät prüfen.'};op.finish(Error(messages[op.response]||'Unbekannte Laufband-Antwort '+op.response));}
+    }};
+    const fail=error=>{
+     if(this.operation!==op||this.device!==device)return;
+     const detail=label+': '+core.errorText(error);
+     if(op.sent){this.uncertain=true;this.uncertainCommand=code;this.lastControlError=detail;}
+     op.finish(Error(detail));
+    };
+    this.operation=op;op.timer=setTimeout(()=>fail(Error('Keine Laufband-Bestätigung. Bitte Bluetooth neu verbinden.')),this.commandTimeout);
+    Promise.resolve().then(async()=>{
+     if(this.operation!==op||this.device!==device||!this.connected)throw Error('Bluetooth-Verbindung unterbrochen.');
+     beforeWrite();op.sent=true;
+     await point[writer](Uint8Array.from([code,...parameters]));
+    }).then(()=>{op.written=true;op.settle();},fail);
+   });
+  }
+  async start({shouldStart=()=>true,onSent=()=>{}}={}){
+   if(this.starting)throw Error('Der gemeinsame Start läuft bereits.');
+   if(this.uncertain)throw Error(this.startBlockedReason);
+   const device=this.device;this.starting=true;
+   const check=()=>{if(!shouldStart()||this.device!==device||!this.connected)throw Error('Start abgebrochen.');};
+   try{check();if(!this.controlGranted)await this.procedure(0x00,[],check);check();await this.procedure(0x07,[],()=>{check();onSent();});}
+   finally{this.starting=false;}
+  }
+  async stop(pause=false){
+   if(!this.controlGranted)throw Error('Keine Steuerfreigabe. Bitte das Laufband am Gerät anhalten.');
+   await this.procedure(0x08,[pause?2:1]);
+  }
+  disconnect(){
+   const device=this.device;this.device=null;
+   this.operation?.finish(Error('Bluetooth-Verbindung unterbrochen. Laufband am Gerät prüfen.'));
+   this.control=null;this.controlWriter=null;this.controlIssue='';this.controlGranted=false;this.uncertain=false;this.uncertainCommand=null;this.lastControlError='';
+   for(const [target,event,handler] of this.listeners)target.removeEventListener(event,handler);this.listeners=[];
+   if(device?.gatt?.connected)device.gatt.disconnect();
+   if(device)this.onConnection({connected:false});
+  }
+ }
+ if(typeof module!=='undefined'&&module.exports)module.exports={FTMSClient};
+ root.VirtualWalkingBluetooth={FTMSClient};
+})(typeof window!=='undefined'?window:globalThis);
+
+</script>
+<script>
+'use strict';
+(function(root){
+ // The video is unlocked by the original tap before any motor command.
+ // A successful BLE write is not an acceptance or proof of belt movement.
+ async function jointStart({signal,prepareVideo,isMoving,allowStart,driver,onSent,waitForMotion,playVideo,beginRecording}){
+  const check=()=>{if(signal.aborted)throw Error('Start abgebrochen.');};
+  check();await prepareVideo(signal);check();
+  if(!isMoving()){
+   if(!allowStart())throw Error('Bitte auf aktuelle Stillstandsdaten des Laufbands warten.');
+   await driver.start({shouldStart:()=>!signal.aborted&&allowStart(),onSent});check();
+   await waitForMotion(signal);check();
+  }
+  await playVideo(signal);check();beginRecording();
+ }
+ if(typeof module!=='undefined'&&module.exports)module.exports={jointStart};
+ root.VirtualWalkingStart={jointStart};
+})(typeof window!=='undefined'?window:globalThis);
+
+</script>
+<script>
+'use strict';
+(function(root){
+ const C=typeof module!=='undefined'&&module.exports?require('./core.js'):root.VirtualWalkingCore;
+ const videoID=value=>{
+  if(typeof value!=='string')return null;
+  if(/^[A-Za-z0-9_-]{11}$/.test(value))return value;
+  try{const url=new URL(value),host=url.hostname.toLowerCase().replace(/^www\./,'');
+   if(host==='youtu.be')return url.pathname.slice(1).split('/')[0];
+   if(['youtube.com','m.youtube.com','youtube-nocookie.com'].includes(host))return url.searchParams.get('v')||url.pathname.match(/^\/(?:embed|shorts|live)\/([A-Za-z0-9_-]{11})/)?.[1]||null;
+  }catch{}return null;
+ };
+ class CastController{
+  constructor({rpc,onChange=()=>{},now=()=>performance.now(),timeout=8000}){
+   this.rpc=rpc;this.onChange=onChange;this.now=now;this.timeout=timeout;this.source=null;this.connected=false;this.state=null;this.receivedAt=-Infinity;this.waiters=new Set();this.pendingRate=null;this.rateError='';this.epoch=0;this.session=null;this.suspended=false;this.transportBusy=false;this.confirmedRate=null;this.revision=0;
+  }
+  setSource(kind,value){this.source=kind==='youtube'?videoID(value):null;this.cancel(Error('Video gewechselt.'));this.rateError='';this.confirmedRate=null;this.onChange();}
+  cancel(error){this.epoch++;this.pendingRate=null;for(const waiter of Array.from(this.waiters))waiter.fail(error);}
+  receive(message){
+   if(message.type!=='cast.status')return;
+   this.revision++;
+   const changed=this.session!==message.session||this.connected!==!!message.connected||(this.state&&message.media&&(this.state.mediaSessionID!==message.media.mediaSessionID||this.state.contentID!==message.media.contentID));
+   if(changed){this.cancel(Error('TV-Verbindung geändert.'));this.rateError='';this.confirmedRate=null;}
+   this.session=message.session;this.connected=!!message.connected;this.selected=this.selected||!!message.connected||!!message.connecting;this.device=message.device||'';this.applicationID=message.applicationID;
+   this.state=message.media||null;this.receivedAt=message.fresh===false?-Infinity:this.now();
+   if(!this.matches()){this.confirmedRate=null;if(this.waiters.size)this.cancel(Error('Der TV meldet ein anderes oder kein zugeordnetes YouTube-Video.'));}
+   for(const waiter of Array.from(this.waiters))waiter.check();
+   this.onChange();
+  }
+  matches(){return this.connected&&this.applicationID==='233637DE'&&!this.state?.playingAd&&!!this.source&&videoID(this.state?.contentID)===this.source&&Number.isFinite(this.state?.mediaSessionID)&&this.state.mediaSessionID>0;}
+  fresh(){return this.matches()&&!this.suspended&&this.now()-this.receivedAt<6000;}
+  get active(){return this.connected||!!this.selected;}
+  get playing(){return this.fresh()&&this.state?.playerState==='playing';}
+  get rate(){return this.fresh()&&Number.isFinite(this.state?.rate)?this.state.rate:null;}
+  requireReady(){
+   if(this.suspended)throw Error('Die App ist im Hintergrund.');
+   if(!this.matches())throw Error('Bitte das gewählte YouTube-Video zuerst über YouTube auf deinen TV übertragen. Der TV muss dasselbe Video an VirtualWalking melden.');
+   if(!this.fresh())throw Error('Keine aktuelle TV-Rückmeldung.');
+  }
+  binding(){return {session:this.session,mediaSessionID:this.state.mediaSessionID,contentID:this.state.contentID};}
+  waitFor(predicate,signal,minimumRevision=-1){
+   return new Promise((resolve,reject)=>{
+    const epoch=this.epoch;let timer;
+    const cleanup=()=>{clearTimeout(timer);this.waiters.delete(waiter);signal?.removeEventListener('abort',aborted);};
+    const waiter={check:()=>{if(epoch!==this.epoch)return waiter.fail(Error('TV-Sitzung geändert.'));if(this.revision>minimumRevision&&this.fresh()&&predicate(this.state)){cleanup();resolve();}},fail:error=>{cleanup();reject(error);}};
+    const aborted=()=>waiter.fail(Error('Start abgebrochen.'));
+    this.waiters.add(waiter);timer=setTimeout(()=>waiter.fail(Error('Der TV hat den gewünschten Wiedergabezustand nicht bestätigt.')),this.timeout);
+    signal?.addEventListener('abort',aborted,{once:true});if(signal?.aborted)aborted();else waiter.check();
+   });
+  }
+  async transport(action,signal){
+   this.requireReady();if(signal?.aborted)throw Error('Start abgebrochen.');
+   const epoch=this.epoch,started=this.revision;
+   await this.rpc('cast.'+action,this.binding());
+   if(epoch!==this.epoch||signal?.aborted)throw Error('TV-Start abgebrochen.');
+   await this.waitFor(state=>state.playerState===(action==='play'?'playing':'paused'),signal,started);
+  }
+  async prepare(signal){
+   if(this.transportBusy)throw Error('TV-Start läuft bereits.');this.transportBusy=true;
+   try{await this.transport('play',signal);await this.transport('pause',signal);}
+   finally{this.transportBusy=false;}
+  }
+  play(signal){return this.transport('play',signal);}
+  pause(){
+   this.cancel(Error('TV pausiert.'));if(this.pauseTask)return this.pauseTask;
+   if(!this.matches()||(this.fresh()&&this.state.playerState==='paused'))return Promise.resolve();
+   const task=this.rpc('cast.pause',this.binding());this.pauseTask=task;
+   task.finally(()=>{if(this.pauseTask===task)this.pauseTask=null;}).catch(()=>{});return task;
+  }
+  stop(){this.cancel(Error('TV gestoppt.'));if(!this.matches())return Promise.resolve();return this.rpc('cast.stop',this.binding());}
+  async setRate(rate){
+   this.requireReady();if(this.pendingRate||this.rateError)return;
+   if(!Number.isFinite(rate)||rate<.5||rate>2)throw Error('Ungültiges TV-Tempo.');
+   if(this.confirmedRate===rate&&this.playing&&Math.abs(this.rate-rate)<.025)return;
+   const operation={epoch:this.epoch,rate};this.pendingRate=operation;const started=this.revision;
+   try{
+    await this.rpc('cast.rate',{...this.binding(),rate});
+    if(this.epoch!==operation.epoch)throw Error('TV-Sitzung geändert.');
+    await this.waitFor(state=>state.playerState==='playing'&&Number.isFinite(state.rate)&&Math.abs(state.rate-rate)<.025,null,started);
+    if(this.epoch===operation.epoch)this.confirmedRate=rate;
+   }catch(error){if(this.epoch===operation.epoch){this.rateError=C.errorText(error);this.confirmedRate=null;}}
+   finally{if(this.pendingRate===operation)this.pendingRate=null;this.onChange();}
+  }
+  suspend(){this.suspended=true;this.cancel(Error('Die App ist im Hintergrund.'));this.confirmedRate=null;}
+  resume(){this.suspended=false;this.receivedAt=-Infinity;this.confirmedRate=null;}
+ }
+ const api={CastController,videoID};
+ if(typeof module!=='undefined'&&module.exports)module.exports=api;
+ root.VirtualWalkingCast=api;
+})(typeof window!=='undefined'?window:globalThis);
+
+</script>
+<script>
+'use strict';
+(() => {
+ const C=window.VirtualWalkingCore,$=id=>document.getElementById(id);
+ const key=name=>'virtualwalking_iphone_v1_'+name;
+ const read=(name,fallback)=>{try{const value=JSON.parse(localStorage.getItem(key(name)));return value===null?fallback:value;}catch{return fallback;}};
+ const write=(name,value)=>{try{localStorage.setItem(key(name),JSON.stringify(value));return true;}catch{announce('Die lokale Speicherung ist in diesem Browser nicht verfügbar.',true);return false;}};
+ const text=(id,value)=>{const node=$(id);if(node.textContent!==value)node.textContent=value;};
+ const decimal=(value,digits=1)=>Number(value).toLocaleString('de-DE',{minimumFractionDigits:digits,maximumFractionDigits:digits});
+ const rateLabel=value=>Number.isFinite(value)?decimal(value,2)+'×':'—';
+ let speed=null,nativeDistance=null,lastDataAt=0,lastSpeedAt=0,connectedAt=0,workout=null;
+ let videoKind='none',videoName='',objectUrl=null,youtubePlayer=null,youtubeReady=false,youtubePromise=null,sourceGeneration=0;
+ let wantedVideo=false,beltPaused=false,lastRateRequest=null,lastRateRequestAt=0,actualRate=null,wakeLock=null;
+ let starting=false,stopping=false,startupTask=null,startupAbort=null,playbackProbe=null;
+ let motorMayRun=false,coupled=false,stopTask=null,stopConfirmed=false;
+ const tv=window.VirtualWalkingNative?new window.VirtualWalkingCast.CastController({rpc:window.VirtualWalkingNative.rpc,onChange:()=>{renderTV();}}):null;
+ function renderTV(){
+  const node=$('tvStatus');if(!node||!tv)return;
+  node.textContent=!tv.active?'TV: Über das Cast-Symbol oben verbinden.':!tv.connected?'TV: Nicht verbunden. Bitte über das Cast-Symbol erneut verbinden.':!tv.matches()?'Verbunden: '+tv.device+' · Bitte dasselbe YouTube-Video am TV öffnen.':!tv.fresh()?'TV: Warte auf aktuelle Rückmeldung.':'TV: '+tv.device+' · '+(tv.playing?'Wiedergabe':'Pausiert / bereit')+' · '+rateLabel(tv.rate);
+ }
+ window.addEventListener('vw-native',event=>{
+  const message=event.detail;
+  if(message.type==='cast.status'){
+   const wasActive=tv?.active;tv?.receive(message);
+   if((starting||workout?.running)&&(wasActive||tv?.active)&&(!tv?.active||!tv.matches()||wasActive!==tv.active)){
+    startupAbort?.abort();pause('TV meldet kein passendes Laufvideo mehr. Laufband am Gerät anhalten.');
+   }
+  }else if(message.type==='app.suspend'){
+   tv?.suspend();startupAbort?.abort();if(workout?.running)pause('App im Hintergrund. Laufband am Gerät anhalten.');else pauseVideo();
+  }else if(message.type==='app.resume'){tv?.resume();window.VirtualWalkingNative.rpc('cast.status').catch(()=>{});}
+ });
+
+
+ function announce(message,error=false){text('message',message);$('message').classList.toggle('error',error);}
+ function settings(){const reference=Number($('referenceSpeed').value);return {sync:$('syncEnabled').checked,pauseAtZero:$('pauseAtZero').checked,reference:Number.isFinite(reference)&&reference>=1&&reference<=15?reference:4};}
+ function fresh(){return bt.connected&&lastDataAt>0&&performance.now()-lastDataAt<5000;}
+ function freshSpeed(){return fresh()&&lastSpeedAt>0&&performance.now()-lastSpeedAt<5000;}
+ function videoPlaying(){if(tv?.active)return tv.playing;try{return videoKind==='youtube'?youtubeReady&&youtubePlayer?.getPlayerState()===1:videoKind!=='none'&&!$('video').paused&&!$('video').ended;}catch{return false;}}
+ function playVideo(){
+  if(videoKind==='none')return;
+  wantedVideo=true;
+  if(document.hidden)return;
+  if(tv?.active){tv.play().catch(error=>{text('videoStatus',C.errorText(error));});return;}
+  try{if(videoKind==='youtube'){if(youtubeReady)youtubePlayer.playVideo();}else $('video').play().catch(()=>text('videoStatus','Bitte zum Starten einmal ▶ im Video drücken.'));}catch{ text('videoStatus','Bitte die Wiedergabe im Video starten.');}
+ }
+ function pauseVideo(automatic=false){
+  if(!automatic){wantedVideo=false;beltPaused=false;}
+  if(tv?.active){tv.pause().catch(error=>text('videoStatus',C.errorText(error)));return;}
+  try{if(videoKind==='youtube')youtubePlayer?.pauseVideo();else $('video').pause();}catch{}
+ }
+ function stopVideo(){if(tv?.active){wantedVideo=false;beltPaused=false;tv.stop().catch(error=>text('videoStatus',C.errorText(error)));return;}pauseVideo();try{if(videoKind==='youtube')youtubePlayer?.seekTo(0,true);else $('video').currentTime=0;}catch{}}
+ async function keepAwake(enabled){
+  if(!enabled){if(wakeLock){const lock=wakeLock;wakeLock=null;await lock.release().catch(()=>{});}return;}
+  if(wakeLock||!navigator.wakeLock||document.hidden)return;
+  try{wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>{wakeLock=null;},{once:true});}catch{}
+ }
+ function renderWorkout(){
+  text('speed',bt.connected&&Number.isFinite(speed)?decimal(speed):'—');
+  $('distance').replaceChildren(document.createTextNode(decimal(workout?.distanceKm||0,2)+' '),unit('km'));
+  text('duration',C.formatTime(workout?.seconds||0));
+  $('average').replaceChildren(document.createTextNode(decimal(workout?.averageKmh||0)+' '),unit('km/h'));
+  const calories=workout?C.calories(Number($('weight').value),workout.averageKmh,workout.seconds):null;
+  $('calories').replaceChildren(document.createTextNode((calories===null?'—':String(calories))+' '),unit('kcal'));
+  $('start').disabled=!bt.connected||!!workout?.running||starting||stopping;
+  text('start',starting?'Startet …':stopping?'Wird angehalten …':workout?'▶ Fortsetzen':'▶ Training starten');
+  $('pause').disabled=stopping||(!starting&&!workout?.running&&!motorMayRun);$('finish').disabled=stopping||(!starting&&!workout&&!motorMayRun);
+  for(const id of ['fileInput','showLink','pasteLink','videoUrl'])$(id).disabled=starting||stopping;
+  text('trainingStatus',starting?'Gemeinsamer Start':stopping?'Wird angehalten':workout?(workout.running?'Aufzeichnung läuft':'Pausiert'):'Bereit');
+  text('controlMode',bt.canControl?'FTMS · Steuerkanal bereit':'FTMS · Daten verbunden');
+  if(!bt.connected)text('controlMode','FTMS · Nicht verbunden');
+  text('trainingHint',!bt.connected?'Verbinde das Laufband und wähle ein Video. „Training starten“ prüft den gemeinsamen Start.':bt.canControl?'„Training starten“ fordert den gemeinsamen Start von Laufband und Video an. Das Starttempo bestimmt das Laufband. Nach einem App-Start halten „Pause“ und „Beenden“ auch das Band an.':'Unsere App konnte den Steuerkanal noch nicht öffnen. Trenne die Laufband-Verbindung in Wellfit und verbinde das Laufband hier erneut. Für Video und Aufzeichnung kannst du das Band auch am Gerät starten.');
+  text('controlIssue',bt.controlIssue||'');$('controlIssue').hidden=!bt.connected||bt.canControl||!bt.controlIssue;
+  $('controlHint').hidden=!bt.canControl;
+ }
+ function unit(value){const small=document.createElement('small');small.textContent=value;return small;}
+ function beginRecording(play=true){
+  if(!bt.connected){announce('Bitte zuerst das Laufband verbinden.');return;}
+  if(workout?.running)return;
+  const now=performance.now();
+  if(workout)workout.resume(now,nativeDistance);else workout=new C.Workout(now,nativeDistance);
+  if(play)playVideo();keepAwake(true);announce('Training und Video laufen.');renderWorkout();syncVideo();
+ }
+ function requestPlayback(signal,hold=false){
+  if(tv?.active){
+   if(videoKind!=='youtube')return Promise.reject(Error('Dieser TV-Baustein übernimmt bestehende YouTube-TV-Sitzungen. Bitte ein YouTube-Laufvideo wählen.'));
+   return (hold?tv.prepare(signal):tv.play(signal)).then(()=>{if(!hold){wantedVideo=true;beltPaused=false;}});
+  }
+  if(videoKind==='none')return Promise.reject(Error('Bitte zuerst ein Laufvideo wählen.'));
+  if(videoKind==='youtube'&&!youtubeReady)return Promise.reject(Error('Bitte warten, bis das YouTube-Video bereit ist.'));
+  if(videoKind!=='youtube'&&$('video').error)return Promise.reject(Error('Das gewählte Video ist nicht abspielbar.'));
+  if(signal.aborted||document.hidden)return Promise.reject(Error('Start abgebrochen.'));
+  return new Promise((resolve,reject)=>{
+   const generation=sourceGeneration;
+   const clean=()=>{clearTimeout(probe.timer);signal.removeEventListener('abort',abort);if(playbackProbe===probe)playbackProbe=null;};
+   const abort=()=>probe.fail(Error('Start abgebrochen.'));
+   const probe={success:()=>{
+    if(playbackProbe!==probe||probe.waitingPause)return;
+    if(signal.aborted||document.hidden||generation!==sourceGeneration){probe.fail(Error('Start abgebrochen.'));return;}
+    wantedVideo=true;beltPaused=false;
+    if(hold){probe.waitingPause=true;pauseVideo();if(videoKind!=='youtube'&&$('video').paused)probe.paused();}
+    else{clean();resolve();}
+   },paused:()=>{if(playbackProbe===probe&&probe.waitingPause){clean();resolve();}},fail:error=>{if(playbackProbe!==probe)return;clean();pauseVideo();reject(error);}};
+   playbackProbe=probe;signal.addEventListener('abort',abort,{once:true});
+   probe.timer=setTimeout(()=>probe.fail(Error('Das Video startet noch nicht. Bitte einmal ▶ im Videoplayer drücken und danach erneut „Training starten“.')),8000);
+   try{if(videoPlaying())probe.success();else if(videoKind==='youtube')youtubePlayer.playVideo();else $('video').play().then(probe.success,()=>probe.fail(Error('Bitte das Video zuerst einmal im Player freigeben und danach „Training starten“ drücken.')));}
+   catch(error){probe.fail(error);}
+  });
+ }
+ function waitForMotion(signal){
+  return new Promise((resolve,reject)=>{
+   const clean=()=>{clearTimeout(timer);clearInterval(poll);signal.removeEventListener('abort',abort);};
+   const abort=()=>{clean();reject(Error('Start abgebrochen.'));};
+   const timer=setTimeout(()=>{clean();reject(Error('Der Start wurde bestätigt, aber es wurden keine aktuellen Bewegungsdaten gemeldet.'));},20000);
+   const poll=setInterval(()=>{if(freshSpeed()&&Number.isFinite(speed)&&speed>=.1){clean();resolve();}},100);
+   signal.addEventListener('abort',abort,{once:true});if(signal.aborted)abort();
+  });
+ }
+ function stopMotor(paused=false){
+  if(stopTask)return stopTask;
+  if(!motorMayRun||!coupled)return Promise.resolve();
+  stopTask=bt.stop(paused).then(()=>{motorMayRun=false;stopConfirmed=true;}).finally(()=>{stopTask=null;});return stopTask;
+ }
+ function begin(){
+  if(starting||stopping||workout?.running)return;
+  if(!bt.connected){announce('Bitte zuerst das Laufband verbinden.',true);return;}
+  if(bt.startBlockedReason){announce(bt.startBlockedReason,true);return;}
+  if(!freshSpeed()||!Number.isFinite(speed)){announce('Bitte auf aktuelle Geschwindigkeitsdaten des Laufbands warten.',true);return;}
+  if(speed<.1&&!bt.canControl){announce('App-Start noch nicht möglich: '+(bt.controlIssue||'Der Steuerkanal konnte nicht geöffnet werden.')+' Bitte Wellfit trennen und Bluetooth hier neu verbinden. Alternativ am Gerät starten, dann „Training starten“ drücken.',true);return;}
+  starting=true;const controller=new AbortController();startupAbort=controller;renderWorkout();
+  announce('Video wird vorbereitet. Danach wird der Laufband-Start angefordert.');
+  startupTask=(async()=>{
+   try{
+    await window.VirtualWalkingStart.jointStart({signal:controller.signal,
+     prepareVideo:signal=>requestPlayback(signal,true),isMoving:()=>freshSpeed()&&Number.isFinite(speed)&&speed>=.1,
+     allowStart:()=>freshSpeed()&&Number.isFinite(speed)&&speed<.1,
+     driver:bt,onSent:()=>{motorMayRun=true;coupled=true;stopConfirmed=false;announce('Laufband-Start gesendet. Warte auf Bestätigung und Bandbewegung …');},
+     waitForMotion,playVideo:signal=>requestPlayback(signal,false),beginRecording:()=>beginRecording(false)});
+   }catch(error){
+    pauseVideo();let hint='';
+    if(motorMayRun){try{await stopMotor();hint=' Der Stoppbefehl wurde vom Laufband bestätigt.';}catch{hint=' Bitte das Laufband jetzt am Gerät anhalten.';}}
+    announce((controller.signal.aborted?'Gemeinsamer Start abgebrochen.':'Gemeinsamer Start nicht möglich: '+C.errorText(error))+hint,true);
+   }finally{starting=false;startupAbort=null;startupTask=null;renderWorkout();syncVideo();}
+  })();
+ }
+ function pause(reason='Training und Video pausiert.'){
+  if(workout?.running)workout.pause(performance.now(),speed,fresh());
+  pauseVideo();keepAwake(false);announce(reason);renderWorkout();
+ }
+ function finishRecording(){
+  if(!workout)return;
+  if(workout.running)workout.pause(performance.now(),speed,fresh());
+  const record={date:workout.startedAt,duration:Math.round(workout.seconds),km:Number(workout.distanceKm.toFixed(3)),averageSpeed:Number(workout.averageKmh.toFixed(2)),calories:C.calories(Number($('weight').value),workout.averageKmh,workout.seconds),route:videoName||'Ohne Laufvideo',device:bt.device?.name||'FTMS-Laufband'};
+  if(!write('history',[record,...history()].slice(0,500))){pause('Aufzeichnung pausiert. Die Einheit konnte nicht gespeichert werden.');return;}
+  stopVideo();keepAwake(false);workout=null;renderHistory();renderWorkout();announce('Training lokal gespeichert.');
+ }
+ async function pauseFromButton(){
+  if(stopping)return;stopping=true;const task=startupTask;startupAbort?.abort();pause();renderWorkout();
+  try{if(task)await task;if(motorMayRun)await stopMotor(true);announce('Training und Video pausiert.'+(coupled?(stopConfirmed?' Der Pause-/Stoppbefehl wurde vom Laufband bestätigt.':' Laufband am Gerät prüfen.'):''));}
+  catch{announce('Aufzeichnung und Video pausiert. Bitte das Laufband am Gerät anhalten – keine Stoppbestätigung erhalten.',true);}
+  finally{stopping=false;renderWorkout();}
+ }
+ async function finishFromButton(){
+  if(stopping)return;stopping=true;const task=startupTask;startupAbort?.abort();pause();renderWorkout();let failed=false;
+  try{if(task)await task;if(motorMayRun)await stopMotor();}catch{failed=true;}
+  finishRecording();if(failed)announce('Bitte das Laufband am Gerät anhalten – der Stopp wurde nicht bestätigt.',true);
+  else if(!workout)announce('Training beendet.'+(coupled?(stopConfirmed?' Der Laufband-Stopp wurde bestätigt.':' Laufband am Gerät prüfen.'):''));
+  stopping=false;renderWorkout();
+ }
+ function connectionChanged(info){
+  $('connectionDot').classList.toggle('active',info.connected);$('connect').hidden=info.connected;$('disconnect').hidden=!info.connected;
+  text('connectionStatus',info.connected?'Verbunden':'Nicht verbunden');
+  if(info.connected){connectedAt=performance.now();motorMayRun=false;coupled=false;stopConfirmed=false;write('lastDevice',{id:info.id,name:info.name});text('deviceName',info.name);announce('Mit '+info.name+' verbunden.'+(info.canControl?' Steuerkanal bereit. „Training starten“ prüft die Freigabe am Laufband.':' Trainingsdaten verfügbar. Der Steuerkanal konnte noch nicht geöffnet werden.'));}
+  else{
+   startupAbort?.abort();playbackProbe?.fail(Error('Bluetooth-Verbindung getrennt.'));
+   const reason=motorMayRun?'Bluetooth getrennt – Aufzeichnung und Video pausiert. Bitte das Laufband am Gerät anhalten.':'Bluetooth-Verbindung getrennt – Aufzeichnung und Video pausiert.';
+   if(workout?.running)pause(reason);else{pauseVideo();if(motorMayRun)announce(reason,true);}
+   speed=null;nativeDistance=null;lastDataAt=0;lastSpeedAt=0;const previous=read('lastDevice',null);text('deviceName',previous?.name?'Zuletzt: '+previous.name:'FTMS-Laufband auswählen');
+  }
+  renderWorkout();syncVideo();
+ }
+ function telemetry(data){
+  const now=performance.now();if(workout?.running)workout.tick(now,speed,fresh());
+  if(Number.isFinite(data.speed)){speed=data.speed;lastSpeedAt=now;}
+  if(Number.isFinite(data.distanceKm)){nativeDistance=data.distanceKm;workout?.telemetry(nativeDistance);}
+  lastDataAt=now;renderWorkout();syncVideo();
+ }
+ function machineStatus(status){
+  if(status.code===0x03||(status.code===0x02&&status.reason===0x01)){motorMayRun=false;startupAbort?.abort();speed=0;if(workout)finishRecording();else pauseVideo();announce(status.code===0x03?'Sicherheitsstopp erkannt. Die laufende Einheit wurde beendet.':'Laufband-Stopp erkannt. Die laufende Einheit wurde beendet.');}
+  else if(status.code===0x02&&status.reason===0x02){startupAbort?.abort();speed=0;if(workout?.running)pause('Laufband pausiert – Aufzeichnung und Video pausiert.');else pauseVideo();}
+  else if(status.code===0x04&&workout&&!workout.running&&!starting&&!stopping)beginRecording();
+  else if(status.code===0xff){startupAbort?.abort();pause('Steuerfreigabe verloren. Laufband am Gerät bedienen.');}
+  renderWorkout();syncVideo();
+ }
+ const bt=new window.VirtualWalkingBluetooth.FTMSClient({bluetooth:navigator.bluetooth,onConnection:connectionChanged,onData:telemetry,onStatus:machineStatus,onError:error=>announce(C.errorText(error),true)});
+ $('browserNotice').hidden=!!navigator.bluetooth?.requestDevice;
+ $('connect').addEventListener('click',async()=>{
+  if(!navigator.bluetooth?.requestDevice){$('browserNotice').hidden=false;announce('Für Bluetooth bitte diese Seite in Bluefy öffnen.',true);return;}
+  $('connect').disabled=true;text('connectionStatus','Laufband auswählen …');
+  try{await bt.connect();}catch(error){text('connectionStatus','Nicht verbunden');announce(error?.name==='NotFoundError'?'Geräteauswahl abgebrochen oder kein FTMS-Laufband gefunden.':'Bluetooth: '+C.errorText(error),error?.name!=='NotFoundError');}
+  finally{$('connect').disabled=false;renderWorkout();}
+ });
+ $('disconnect').addEventListener('click',()=>{const wasRunning=motorMayRun;bt.disconnect();announce(wasRunning?'Bluetooth getrennt. Bitte das Laufband am Gerät anhalten.':'Bluetooth-Verbindung getrennt.',wasRunning);});
+ const previous=read('lastDevice',null);if(previous?.name)text('deviceName','Zuletzt: '+previous.name);
+
+ function resetVideo(){
+  startupAbort?.abort();playbackProbe?.fail(Error('Video gewechselt.'));
+  ++sourceGeneration;pauseVideo();
+  if(youtubePlayer){try{youtubePlayer.destroy();}catch{}youtubePlayer=null;}
+  youtubeReady=false;$('youtube').replaceChildren();$('youtube').hidden=true;
+  const video=$('video');video.pause();video.removeAttribute('src');video.load();video.hidden=true;
+  if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl=null;}
+  tv?.setSource(null,null);
+  videoKind='none';lastRateRequest=null;lastRateRequestAt=0;actualRate=null;beltPaused=false;
+  $('videoPlaceholder').hidden=true;
+ }
+ function markVideo(name,source){videoName=name;text('videoTitle',name);text('videoSource',source);}
+ function loadFile(file){
+  if(!file)return;
+  const resume=!!workout?.running;resetVideo();videoKind='local';objectUrl=URL.createObjectURL(file);
+  $('video').hidden=false;$('video').src=objectUrl;markVideo(file.name,'Vom iPhone');text('videoStatus','Lokales Video wird geladen …');wantedVideo=resume;
+  if(resume)playVideo();syncVideo();
+ }
+ $('fileInput').addEventListener('change',event=>{loadFile(event.target.files?.[0]);event.target.value='';});
+ $('showLink').addEventListener('click',()=>{const show=$('linkPanel').hidden;$('linkPanel').hidden=!show;$('showLink').setAttribute('aria-expanded',String(show));});
+ function linkFeedback(message,error=false){text('linkStatus',message);$('linkStatus').classList.toggle('error',error);}
+ function youtubeId(value){
+  const url=new URL(value);const host=url.hostname.toLowerCase().replace(/^www\./,'');
+  if(host==='youtu.be')return url.pathname.split('/')[1];
+  if(['youtube.com','m.youtube.com','youtube-nocookie.com'].includes(host)){if(url.pathname==='/watch')return url.searchParams.get('v');return url.pathname.match(/^\/(?:embed|shorts|live)\/([^/]+)/)?.[1]||null;}
+  return null;
+ }
+ function youtubeApi(){
+  if(window.YT?.Player)return Promise.resolve();if(youtubePromise)return youtubePromise;
+  youtubePromise=new Promise((resolve,reject)=>{
+   const script=document.createElement('script');script.src='https://www.youtube.com/iframe_api';script.async=true;
+   const fail=()=>{clearTimeout(timeout);youtubePromise=null;script.remove();reject(Error('YouTube konnte nicht geladen werden. Internetverbindung prüfen und erneut versuchen.'));};
+   const timeout=setTimeout(fail,15000);script.onerror=fail;
+   window.onYouTubeIframeAPIReady=()=>{clearTimeout(timeout);resolve();};document.head.append(script);
+  });return youtubePromise;
+ }
+ async function loadYoutube(id){
+  const resume=!!workout?.running;resetVideo();videoKind='youtube';tv?.setSource('youtube',id);const generation=sourceGeneration;
+  markVideo('YouTube-Laufvideo','YouTube');text('videoStatus','YouTube wird geladen …');$('youtube').hidden=false;wantedVideo=resume;
+  try{
+   await youtubeApi();if(generation!==sourceGeneration)return;
+   const frame=document.createElement('iframe');frame.title='YouTube-Laufvideo';frame.referrerPolicy='strict-origin-when-cross-origin';frame.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';frame.allowFullscreen=true;
+   frame.src='https://www.youtube-nocookie.com/embed/'+id+'?enablejsapi=1&playsinline=1&rel=0&origin='+encodeURIComponent(window.VirtualWalkingNative?'https://virtualwalking-iphone-bluefy.saltychick64.chatgpt.site':location.origin);$('youtube').append(frame);
+   youtubePlayer=new YT.Player(frame,{events:{
+    onReady:event=>{if(generation!==sourceGeneration)return;youtubeReady=true;const title=event.target.getVideoData?.().title;if(title)markVideo(title,'YouTube');text('videoStatus','YouTube bereit. Zum Starten ggf. einmal ▶ im Player drücken.');if(wantedVideo)playVideo();syncVideo();},
+    onPlaybackRateChange:event=>{if(generation!==sourceGeneration)return;actualRate=Number(event.data);syncVideo();},
+    onStateChange:event=>{if(generation!==sourceGeneration)return;if(event.data===1){wantedVideo=true;beltPaused=false;text('videoStatus','YouTube läuft.');playbackProbe?.success();}else if(event.data===2){text('videoStatus','YouTube pausiert.');playbackProbe?.paused();}else if(event.data===3)text('videoStatus','YouTube puffert …');else if(event.data===0){wantedVideo=false;text('videoStatus','YouTube-Video beendet.');}},
+    onAutoplayBlocked:()=>{text('videoStatus','Bitte einmal ▶ im YouTube-Player drücken, um die Wiedergabe freizugeben.');playbackProbe?.fail(Error('YouTube blockiert den Start. Bitte einmal ▶ im Player drücken, dann erneut „Training starten“.'));},
+    onError:event=>{const messages={2:'Der YouTube-Link ist ungültig.',5:'YouTube kann dieses Video hier nicht abspielen.',100:'Das YouTube-Video ist nicht verfügbar.',101:'Dieses Video darf nicht eingebettet werden. Bitte ein anderes wählen.',150:'Dieses Video darf nicht eingebettet werden. Bitte ein anderes wählen.',153:'YouTube hat die Einbettung nicht freigegeben. Bitte ein anderes Video versuchen.'};const message=messages[event.data]||'YouTube-Fehler '+event.data;text('videoStatus',message);playbackProbe?.fail(Error(message));}
+   }});
+  }catch(error){if(generation===sourceGeneration){text('videoStatus',C.errorText(error));announce(C.errorText(error),true);}}
+ }
+ function openLink(value){
+  value=value.trim();let url,id;
+  try{url=new URL(value);if(url.protocol!=='https:'||url.username||url.password)throw Error();id=youtubeId(value);if(/(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com)$/.test(url.hostname)&&!id)throw Error();if(id&&!/^[a-zA-Z0-9_-]{11}$/.test(id))throw Error();}
+  catch{const message='Bitte einen gültigen YouTube-Video-Link oder HTTPS-Videolink einfügen.';linkFeedback(message,true);announce(message,true);return false;}
+  $('linkPanel').hidden=true;$('showLink').setAttribute('aria-expanded','false');$('videoUrl').blur();
+  if(id)loadYoutube(id);else{const resume=!!workout?.running;resetVideo();videoKind='direct';$('video').hidden=false;$('video').src=url.toString();markVideo('Direktes Onlinevideo','Onlinevideo');text('videoStatus','Onlinevideo wird geladen …');if(resume)playVideo();syncVideo();}
+  linkFeedback('Video übernommen. Zum Abspielen im Player ▶ drücken.');
+  announce('Video-Link übernommen. Zum Abspielen im Player ▶ drücken.');
+  return true;
+ }
+ $('linkPanel').addEventListener('submit',event=>{event.preventDefault();openLink($('videoUrl').value);});
+ $('pasteLink').addEventListener('click',async()=>{
+  const button=$('pasteLink');button.disabled=true;
+  try{
+   if(!navigator.clipboard?.readText)throw Error('Clipboard unavailable');
+   const value=(await navigator.clipboard.readText()).trim();
+   if(!value){linkFeedback('Noch kein Link kopiert. Bei YouTube „Teilen“ → „Link kopieren“ wählen.',true);return;}
+   // Read only on this explicit tap; never inspect the clipboard on return to the app.
+   // Unrelated clipboard contents are neither displayed nor stored.
+   if(!openLink(value))return;
+   $('videoUrl').value=value;
+  }catch{
+   linkFeedback('Bitte das Eingabefeld länger berühren, „Einfügen“ wählen und anschließend „Öffnen“ antippen.',true);
+   $('videoUrl').focus();
+  }finally{button.disabled=false;}
+ });
+ const video=$('video');
+ video.addEventListener('loadedmetadata',()=>{text('videoStatus','Video bereit.');syncVideo();if(wantedVideo)playVideo();});
+ video.addEventListener('playing',()=>{wantedVideo=true;beltPaused=false;text('videoStatus',videoKind==='local'?'Lokales Video läuft.':'Onlinevideo läuft.');playbackProbe?.success();});
+ video.addEventListener('pause',()=>{if(videoKind==='local'||videoKind==='direct')text('videoStatus','Video pausiert.');});
+ video.addEventListener('waiting',()=>text('videoStatus','Video puffert …'));
+ video.addEventListener('ended',()=>{wantedVideo=false;text('videoStatus','Video beendet.');});
+ video.addEventListener('error',()=>{if(videoKind==='none')return;const message='Dieses Video kann nicht abgespielt werden. Bitte z. B. eine MP4-Datei mit H.264 wählen.';text('videoStatus',message);playbackProbe?.fail(Error(message));});
+ video.addEventListener('ratechange',()=>{actualRate=video.playbackRate;});
+
+ function syncLabel(status,feedback,rate=null,confirmed=false){text('syncStatus',status);text('rateFeedback',feedback);text('rateValue',rateLabel(rate));$('syncDot').classList.toggle('active',confirmed);}
+ function syncVideo(){
+  if(tv?.active){
+   renderTV();const opts=settings();
+   if(starting){syncLabel('Gemeinsamer Start am TV','Warte auf TV-Bestätigung und Bandbewegung.');return;}
+   if(!tv.matches()){syncLabel('TV-Video noch nicht zugeordnet','Dasselbe YouTube-Video zuerst am Fernseher öffnen.');return;}
+   if(!tv.fresh()){if(wantedVideo||tv.playing){beltPaused=true;pauseVideo(true);}syncLabel('Keine aktuelle TV-Rückmeldung','Laufband am Gerät anhalten.',null);return;}
+   if(!opts.sync){syncLabel('TV-Tempoanpassung aus','Videotempo wird nicht automatisch verändert.',tv.rate);return;}
+   if(!freshSpeed()||!Number.isFinite(speed)){if(wantedVideo||tv.playing){beltPaused=true;pauseVideo(true);}syncLabel('Warte auf Laufbanddaten','TV-Wiedergabe pausiert.',tv.rate);return;}
+   if(speed<.1&&opts.pauseAtZero){if(wantedVideo||tv.playing){beltPaused=true;pauseVideo(true);}syncLabel('Laufband steht','TV-Video pausiert.',tv.rate);return;}
+   if(beltPaused&&speed>=.2&&wantedVideo){beltPaused=false;playVideo();}
+   const requested=C.targetRate(speed,opts.reference);
+   if(tv.rateError){syncLabel('TV-Tempo nicht bestätigt',tv.rateError,tv.rate);return;}
+   if(tv.playing)tv.setRate(requested).catch(error=>syncLabel('TV-Tempo nicht bestätigt',C.errorText(error),tv.rate));
+   const confirmed=tv.playing&&tv.confirmedRate===requested&&Math.abs(tv.rate-requested)<.025;
+   syncLabel(confirmed?'Synchron · TV meldet Tempo':'Warte auf TV-Temporückmeldung','Angefordert '+rateLabel(requested)+' · TV '+rateLabel(tv.rate),tv.rate,confirmed);return;
+  }
+  if(starting){syncLabel('Gemeinsamer Start wird vorbereitet','Video wartet auf bestätigten Start und Bandbewegung.');return;}
+  if(videoKind==='none'){syncLabel('Tempoanpassung bereit','Video und Laufband verbinden.');return;}
+  const opts=settings();
+  try{actualRate=videoKind==='youtube'?(youtubeReady?youtubePlayer.getPlaybackRate():null):video.playbackRate;}catch{actualRate=null;}
+  if(!opts.sync){syncLabel('Tempoanpassung aus','Videotempo wird nicht automatisch verändert.',actualRate);return;}
+  if(!bt.connected){syncLabel('Laufband verbinden','Ohne Live-Daten bleibt das Videotempo manuell.',actualRate);return;}
+  if(!fresh()||!Number.isFinite(speed)){
+   if(wantedVideo||videoPlaying()){beltPaused=true;pauseVideo(true);}
+   syncLabel('Warte auf Laufbanddaten','Noch keine aktuellen Geschwindigkeitsdaten.',actualRate);return;
+  }
+  if(speed<.1&&opts.pauseAtZero){if(wantedVideo||videoPlaying()){beltPaused=true;pauseVideo(true);}syncLabel('Laufband steht','Das Video pausiert bis das Laufband wieder läuft.',actualRate,true);return;}
+  if(beltPaused&&speed>=.2&&wantedVideo){beltPaused=false;playVideo();}
+  const requested=C.targetRate(speed,opts.reference);
+  if(videoKind==='youtube'){
+   if(!youtubeReady){syncLabel('YouTube wird vorbereitet','Warte auf die verfügbaren Tempostufen.');return;}
+   let rates=[];try{rates=(youtubePlayer.getAvailablePlaybackRates()||[]).filter(n=>n>=.5&&n<=2);}catch{}
+   const closest=C.nearestRate(requested,rates);
+   if(closest===null){syncLabel('YouTube meldet noch kein Tempo','Bitte das Video einmal starten.',actualRate);return;}
+   if(rates.length===1&&rates[0]===1&&Math.abs(requested-1)>.025){syncLabel('YouTube bietet nur normales Tempo','Dieses Video erlaubt hier keine variable Wiedergabe.',actualRate);return;}
+   const confirmed=Number.isFinite(actualRate)&&Math.abs(actualRate-closest)<.025;
+   const now=Date.now();
+   if(!confirmed&&(lastRateRequest!==closest||now-lastRateRequestAt>2500)){
+    try{youtubePlayer.setPlaybackRate(closest);lastRateRequest=closest;lastRateRequestAt=now;}catch{syncLabel('YouTube-Tempo nicht übernommen','Bitte anderes Video versuchen.',actualRate);return;}
+   }
+   syncLabel(confirmed?'Synchron · YouTube-Stufe':'Warte auf YouTube-Temporückmeldung','Angefordert '+rateLabel(closest)+' · Player '+rateLabel(actualRate),actualRate,confirmed);
+  }else{
+   try{if(Math.abs(video.playbackRate-requested)>.01)video.playbackRate=requested;actualRate=video.playbackRate;
+    const confirmed=Math.abs(actualRate-requested)<.025;syncLabel(confirmed?'Synchron zum Laufband':'Videotempo noch nicht übernommen','Angefordert '+rateLabel(requested)+' · Player '+rateLabel(actualRate),actualRate,confirmed);
+   }catch{syncLabel('Dieses Video unterstützt das Tempo nicht','Bitte eine andere Videodatei wählen.',actualRate);}
+  }
+ }
+ const savedSettings=read('settings',{});
+ if(typeof savedSettings.sync==='boolean')$('syncEnabled').checked=savedSettings.sync;
+ if(typeof savedSettings.pauseAtZero==='boolean')$('pauseAtZero').checked=savedSettings.pauseAtZero;
+ if(Number(savedSettings.reference)>=1&&Number(savedSettings.reference)<=15)$('referenceSpeed').value=String(savedSettings.reference);
+ function saveSettings(showValidation=false){
+  if(!$('referenceSpeed').checkValidity()){if(showValidation)$('referenceSpeed').reportValidity();return;}
+  write('settings',settings());
+  if(!settings().sync){beltPaused=false;try{if(videoKind==='youtube')youtubePlayer?.setPlaybackRate(1);else video.playbackRate=1;}catch{}}
+  syncVideo();
+ }
+ for(const id of ['syncEnabled','pauseAtZero','referenceSpeed'])$(id).addEventListener('change',()=>saveSettings(true));
+ $('referenceSpeed').addEventListener('input',()=>saveSettings());
+ const rules={weight:[25,300],height:[100,250],age:[10,120]};const profile=read('profile',{});
+ for(const id of ['weight','height','age','gender']){
+  const input=$(id),saved=String(profile[id]||'');
+  const valid=value=>id==='gender'?['','female','male','diverse'].includes(value):!value||(Number.isFinite(Number(value))&&Number(value)>=rules[id][0]&&Number(value)<=rules[id][1]);
+  if(valid(saved))input.value=saved;
+  const saveProfile=showValidation=>{
+   if(!valid(input.value)){if(showValidation)text('profileStatus','Bitte die Angabe überprüfen.');return;}
+   const data=read('profile',{});data[id]=input.value;
+   text('profileStatus',write('profile',data)?'Persönliche Angaben lokal gespeichert.':'Speichern nicht möglich.');renderWorkout();
+  };
+  input.addEventListener('change',()=>saveProfile(true));
+  input.addEventListener('input',()=>saveProfile(false));
+ }
+ function history(){const values=read('history',[]);return Array.isArray(values)?values.filter(h=>h&&typeof h.date==='string'&&Number.isFinite(h.duration)&&Number.isFinite(h.km)).slice(0,500):[];}
+ function renderHistory(){
+  const entries=history();$('history').replaceChildren();text('historyCount',String(entries.length));
+  if(!entries.length){const p=document.createElement('p');p.className='small-note';p.textContent='Noch keine gespeicherten Einheiten.';$('history').append(p);}
+  for(const item of entries.slice(0,30)){const row=document.createElement('div');row.className='history-entry';const title=document.createElement('strong');title.textContent=decimal(item.km,2)+' km · '+C.formatTime(item.duration);const description=document.createElement('small');description.textContent=new Date(item.date).toLocaleString('de-DE')+' · Ø '+decimal(item.averageSpeed||0)+' km/h';const route=document.createElement('small');route.textContent=String(item.route||'Ohne Laufvideo');row.append(title,description,route);$('history').append(row);}
+  $('export').disabled=!entries.length;$('clearHistory').disabled=!entries.length;
+ }
+ $('export').addEventListener('click',()=>{
+  const cell=value=>{let str=String(value??'');if(/^[=+@-]/.test(str))str="'"+str;return '"'+str.replaceAll('"','""')+'"';};
+  const rows=[['Datum','Dauer_Sekunden','Strecke_km','Durchschnitt_kmh','Kalorien_geschaetzt','Video','Laufband'],...history().map(h=>[h.date,h.duration,String(h.km).replace('.',','),String(h.averageSpeed||0).replace('.',','),h.calories,h.route,h.device])];
+  const url=URL.createObjectURL(new Blob(['\uFEFF'+rows.map(row=>row.map(cell).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const link=document.createElement('a');link.href=url;link.download='VirtualWalking-iPhone-Training.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),10000);
+ });
+ $('clearHistory').addEventListener('click',()=>{if(confirm('Alle in diesem Browser gespeicherten Trainingseinheiten löschen?')&&write('history',[])){renderHistory();announce('Trainingshistorie gelöscht.');}});
+ $('start').addEventListener('click',begin);$('pause').addEventListener('click',pauseFromButton);$('finish').addEventListener('click',finishFromButton);
+ document.addEventListener('visibilitychange',()=>{if(document.hidden){startupAbort?.abort();if(workout?.running)pause('Aufzeichnung pausiert, weil die App im Hintergrund ist. Laufband am Gerät anhalten.');else if(videoPlaying())pauseVideo();}});
+ window.addEventListener('pagehide',()=>{bt.disconnect();if(objectUrl)URL.revokeObjectURL(objectUrl);});
+ setInterval(()=>{
+  const now=performance.now();
+  if(workout?.running){
+   const latest=lastDataAt||connectedAt;
+   if(!bt.connected||now-latest>5000){workout.pause(Math.max(workout.lastTick,Math.min(now,latest+5000)),speed,true);pauseVideo();keepAwake(false);announce('Keine aktuellen Laufbanddaten – Aufzeichnung und Video pausiert. Laufband am Gerät anhalten und Verbindung prüfen.',true);}
+   else workout.tick(now,speed,fresh());
+  }
+  renderWorkout();if(!document.hidden)syncVideo();
+ },500);
+ renderWorkout();renderHistory();syncVideo();renderTV();
+ if(tv)window.VirtualWalkingNative.rpc('cast.status').catch(()=>{});
+})();
+
+</script>
+</body>
+</html>

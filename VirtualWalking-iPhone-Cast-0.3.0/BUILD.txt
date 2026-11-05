@@ -1,0 +1,26 @@
+VirtualWalking iPhone Cast 0.3.0 – Entwicklungsstand als Xcode-Quellprojekt.
+Noch kein installierbarer oder am iPhone/Philips geprüfter Build.
+
+Mac mit Xcode: VirtualWalkingTV.xcodeproj öffnen, SDK laden lassen, eigenes Team
+und eindeutige Bundle-ID unter Signing & Capabilities wählen. iPhone als Ziel ausführen.
+Ohne Gerätesignierung: bash Scripts/build-ios.sh prüft einen Simulator-Build.
+Änderungen an Web-Dateien: python3 Scripts/build_web.py vor dem Xcode-Build.
+Neue Softwaretests: node --test Tests/*.test.cjs
+
+Diese App bündelt die mobile Oberfläche und bindet Bluetooth nativ an.
+FTMS-Parser und Start-/Stopp-Prozeduren stammen unverändert aus Bluefy 0.1.4.
+Die laufende Bluefy-Webversion bleibt unberührt. Trainingsdaten werden nicht automatisch übertragen.
+
+TV-Kopplung: Dasselbe gewählte YouTube-Video zunächst mit dem bekannten YouTube-
+Übertragungsweg auf den Philips bringen. In VirtualWalking das Cast-Symbol antippen.
+Die App versucht, die YouTube-Cast-Sitzung zu übernehmen (Receiver 233637DE).
+Es werden keine YouTube-Watch-Links an den generischen MP4-Receiver geschickt.
+Wenn der Empfänger keinen passenden Medienstatus liefert, wird der gemeinsame
+Start vor einem Laufband-Startbefehl abgebrochen. Werbephasen werden nicht gesteuert.
+Der vorhandene Knopf Training starten bleibt für den gemeinsamen Start zuständig.
+Tempoänderungen gelten erst nach neuer TV-Statusrückmeldung als bestätigt.
+Eine abgelehnte oder unbestätigte Tempoänderung wird nicht endlos erneut gesendet.
+
+Offen: native Kompilierung/Signierung und Verhalten der realen YouTube-TV-Sitzung
+auf Philips 55PUS8079/12. Der Google-Cast-Befehl allein garantiert diese Kompatibilität nicht.
+Kein Abo und keine kostenpflichtige Spiegelungs-App im Projekt.
