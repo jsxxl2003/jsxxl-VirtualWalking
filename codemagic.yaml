@@ -1,0 +1,23 @@
+
+workflows:
+  virtualwalking-ios:
+    name: VirtualWalking iOS
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      xcode: latest
+    scripts:
+      - name: Build web resources
+        script: python3 Scripts/build_web.py
+      - name: Build iOS Simulator
+        script: |
+          xcodebuild \
+            -project VirtualWalkingTV.xcodeproj \
+            -scheme VirtualWalkingTV \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO build
+    artifacts:
+      - build/Build/Products/Debug-iphonesimulator/*.app
