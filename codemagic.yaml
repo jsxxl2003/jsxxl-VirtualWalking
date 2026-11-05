@@ -6,7 +6,7 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: latest
-    working_directory: VirtualWalking-iPhone-Cast-0.3.0
+    working_directory: /Users/builder/clone/VirtualWalking-iPhone-Cast-0.3.0
     scripts:
       - name: Build web resources
         script: python3 Scripts/build_web.py
