@@ -301,7 +301,7 @@ static NSString *VWUUID(CBUUID *uuid) {
 }
 - (void)emit:(NSDictionary *)event { if (self.ready) [self call:@"__vwNativeEvent" value:event]; }
 - (void)viewDidLoad {
-    [super viewDidLoad]; self.title = @"VirtualWalking · 0.3.0"; self.token = NSUUID.UUID.UUIDString;
+    [super viewDidLoad]; self.title = @"VirtualWalking · 0.3.1"; self.token = NSUUID.UUID.UUIDString;
     NSString *bridgePath = [NSBundle.mainBundle pathForResource:@"native-bridge" ofType:@"js" inDirectory:@"Web"];
     NSString *bridge = [NSString stringWithContentsOfFile:bridgePath encoding:NSUTF8StringEncoding error:nil];
     NSData *tokenData = [NSJSONSerialization dataWithJSONObject:@[self.token] options:0 error:nil];
@@ -313,12 +313,21 @@ static NSString *VWUUID(CBUUID *uuid) {
     self.web = [[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration]; self.web.navigationDelegate = self; self.web.UIDelegate = self;
     self.web.translatesAutoresizingMaskIntoConstraints = NO; [self.view addSubview:self.web];
     [NSLayoutConstraint activateConstraints:@[[self.web.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],[self.web.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],[self.web.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],[self.web.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor]]];
-    GCKUICastButton *button = [[GCKUICastButton alloc] initWithFrame:CGRectMake(0,0,44,44)]; button.tintColor = UIColor.systemTealColor;
-    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithCustomView:button];
+    UIBarButtonItem *button = [[UIBarButtonItem alloc] initWithTitle:@"TV verbinden" style:UIBarButtonItemStylePlain target:self action:@selector(connectTV)];
+    button.tintColor = UIColor.systemTealColor;
+    button.accessibilityHint = @"Öffnet die Google-Cast-Geräteauswahl.";
+    self.navigationItem.rightBarButtonItem = button;
     self.ble = [VWBLE new]; self.ble.presenter = self; self.cast = [VWCast new];
     __weak typeof(self) weakSelf = self; VWEvent emit = ^(NSDictionary *event) { [weakSelf emit:event]; }; self.ble.emit = emit; self.cast.emit = emit; [self.cast start];
     NSString *html = [NSString stringWithContentsOfFile:[NSBundle.mainBundle pathForResource:@"native" ofType:@"html" inDirectory:@"Web"] encoding:NSUTF8StringEncoding error:nil];
     [self.web loadHTMLString:html baseURL:[NSURL URLWithString:VWOrigin]];
+}
+- (void)connectTV {
+    GCKCastContext *context = [GCKCastContext sharedInstance];
+    [context.discoveryManager startDiscovery];
+    // The standard SDK dialog also provides help when no devices are found,
+    // including instructions for allowing local-network access.
+    [context presentCastDialog];
 }
 - (void)suspend { [self emit:@{@"type":@"app.suspend"}]; self.cast.latestStatus = nil; self.cast.statusAt = 0; UIApplication.sharedApplication.idleTimerDisabled = NO; }
 - (void)resume { [self emit:@{@"type":@"app.resume"}]; [self.cast.client requestStatus]; UIApplication.sharedApplication.idleTimerDisabled = YES; }
