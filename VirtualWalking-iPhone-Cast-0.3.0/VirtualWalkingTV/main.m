@@ -313,11 +313,10 @@ static NSString *VWUUID(CBUUID *uuid) {
     self.web = [[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration]; self.web.navigationDelegate = self; self.web.UIDelegate = self;
     self.web.translatesAutoresizingMaskIntoConstraints = NO; [self.view addSubview:self.web];
     [NSLayoutConstraint activateConstraints:@[[self.web.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],[self.web.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],[self.web.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],[self.web.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor]]];
-    GCKUICastButton *castButton = [[GCKUICastButton alloc] initWithFrame:CGRectMake(0, 0, 44, 44)];
-    castButton.tintColor = UIColor.systemTealColor;
-    castButton.accessibilityLabel = @"TV verbinden";
-    castButton.accessibilityHint = @"Öffnet die Google-Cast-Geräteauswahl.";
-    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithCustomView:castButton];
+    UIBarButtonItem *button = [[UIBarButtonItem alloc] initWithTitle:@"TV verbinden" style:UIBarButtonItemStylePlain target:self action:@selector(connectTV)];
+    button.tintColor = UIColor.systemTealColor;
+    button.accessibilityHint = @"Öffnet die Cast-Geräteauswahl mit Diagnosehinweis.";
+    self.navigationItem.rightBarButtonItem = button;
     self.ble = [VWBLE new]; self.ble.presenter = self; self.cast = [VWCast new];
     __weak typeof(self) weakSelf = self; VWEvent emit = ^(NSDictionary *event) { [weakSelf emit:event]; }; self.ble.emit = emit; self.cast.emit = emit; [self.cast start];
     NSString *html = [NSString stringWithContentsOfFile:[NSBundle.mainBundle pathForResource:@"native" ofType:@"html" inDirectory:@"Web"] encoding:NSUTF8StringEncoding error:nil];
@@ -326,9 +325,12 @@ static NSString *VWUUID(CBUUID *uuid) {
 - (void)connectTV {
     GCKCastContext *context = [GCKCastContext sharedInstance];
     [context.discoveryManager startDiscovery];
-    // The standard SDK dialog also provides help when no devices are found,
-    // including instructions for allowing local-network access.
-    [context presentCastDialog];
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"TV-Verbindung" message:@"Die Cast-Geräteauswahl wird geöffnet. Falls AirServer nicht erscheint, ist die Geräteerkennung oder der Empfängerfilter zu prüfen." preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Abbrechen" style:UIAlertActionStyleCancel handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Geräteauswahl öffnen" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        [[GCKCastContext sharedInstance] presentCastDialog];
+    }]];
+    [self presentViewController:alert animated:YES completion:nil];
 }
 - (void)suspend { [self emit:@{@"type":@"app.suspend"}]; self.cast.latestStatus = nil; self.cast.statusAt = 0; UIApplication.sharedApplication.idleTimerDisabled = NO; }
 - (void)resume { [self emit:@{@"type":@"app.resume"}]; [self.cast.client requestStatus]; UIApplication.sharedApplication.idleTimerDisabled = YES; }
