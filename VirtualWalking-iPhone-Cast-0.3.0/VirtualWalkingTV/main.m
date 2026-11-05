@@ -325,12 +325,27 @@ static NSString *VWUUID(CBUUID *uuid) {
 - (void)connectTV {
     GCKCastContext *context = [GCKCastContext sharedInstance];
     [context.discoveryManager startDiscovery];
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"TV-Verbindung" message:@"Die Cast-Geräteauswahl wird geöffnet. Falls AirServer nicht erscheint, ist die Geräteerkennung oder der Empfängerfilter zu prüfen." preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Abbrechen" style:UIAlertActionStyleCancel handler:nil]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Geräteauswahl öffnen" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        [[GCKCastContext sharedInstance] presentCastDialog];
-    }]];
-    [self presentViewController:alert animated:YES completion:nil];
+    // Diagnose actual SDK discovery instead of treating a missing dialog as an empty list.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        GCKDiscoveryManager *discovery = [GCKCastContext sharedInstance].discoveryManager;
+        NSUInteger count = discovery.deviceCount;
+        NSMutableArray<NSString *> *names = [NSMutableArray new];
+        for (NSUInteger i = 0; i < count; i++) {
+            GCKDevice *device = [discovery deviceAtIndex:i];
+            [names addObject:device.friendlyName ?: @"Unbenannt"];
+        }
+        NSString *message = count
+            ? [NSString stringWithFormat:@"Gefundene Cast-Geräte (%lu): %@", (unsigned long)count, [names componentsJoinedByString:@", "]]
+            : @"Das Google-Cast-SDK meldet aktuell 0 Geräte. Die YouTube-App findet AirServer; deshalb müssen wir als Nächstes die SDK-Erkennung und den Empfängertyp vergleichen.";
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Cast-Diagnose" message:message preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:@"Schließen" style:UIAlertActionStyleCancel handler:nil]];
+        if (count) {
+            [alert addAction:[UIAlertAction actionWithTitle:@"Geräteauswahl öffnen" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+                [[GCKCastContext sharedInstance] presentCastDialog];
+            }]];
+        }
+        [self presentViewController:alert animated:YES completion:nil];
+    });
 }
 - (void)suspend { [self emit:@{@"type":@"app.suspend"}]; self.cast.latestStatus = nil; self.cast.statusAt = 0; UIApplication.sharedApplication.idleTimerDisabled = NO; }
 - (void)resume { [self emit:@{@"type":@"app.resume"}]; [self.cast.client requestStatus]; UIApplication.sharedApplication.idleTimerDisabled = YES; }
