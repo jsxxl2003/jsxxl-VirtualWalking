@@ -3,6 +3,7 @@
 #import <CoreBluetooth/CoreBluetooth.h>
 #import <SafariServices/SafariServices.h>
 #import <GoogleCast/GoogleCast.h>
+#import <Network/Network.h>
 #import <math.h>
 
 typedef void (^VWReply)(id value, NSString *error, NSString *name);
@@ -289,6 +290,7 @@ static NSString *VWUUID(CBUUID *uuid) {
 @property(nonatomic, strong) VWBLE *ble;
 @property(nonatomic, strong) VWCast *cast;
 @property(nonatomic, strong) NSString *token;
+@property(nonatomic, strong) id localNetworkBrowser;
 @property(nonatomic, assign) BOOL ready;
 - (void)suspend;
 - (void)resume;
@@ -325,6 +327,23 @@ static NSString *VWUUID(CBUUID *uuid) {
 - (void)connectTV {
     GCKCastContext *context = [GCKCastContext sharedInstance];
     [context.discoveryManager startDiscovery];
+    // A real Bonjour browse requests iOS Local Network access independently of Cast.
+    // Retain the browser for the duration of the app session.
+    if (!self.localNetworkBrowser) {
+        nw_browse_descriptor_t descriptor = nw_browse_descriptor_create_bonjour_service("_googlecast._tcp", NULL);
+        nw_parameters_t parameters = nw_parameters_create();
+        nw_browser_t browser = nw_browser_create(descriptor, parameters);
+        if (browser) {
+            self.localNetworkBrowser = browser;
+            nw_browser_set_queue(browser, dispatch_get_main_queue());
+            nw_browser_set_state_changed_handler(browser, ^(nw_browser_state_t state, nw_error_t error) {
+                if (state == nw_browser_state_failed) {
+                    NSLog(@"VirtualWalking Bonjour discovery failed: %@", error);
+                }
+            });
+            nw_browser_start(browser);
+        }
+    }
     // Diagnose actual SDK discovery instead of treating a missing dialog as an empty list.
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         GCKDiscoveryManager *discovery = [GCKCastContext sharedInstance].discoveryManager;
