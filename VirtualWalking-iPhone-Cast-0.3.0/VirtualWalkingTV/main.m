@@ -291,6 +291,7 @@ static NSString *VWUUID(CBUUID *uuid) {
 @property(nonatomic, strong) VWCast *cast;
 @property(nonatomic, strong) NSString *token;
 @property(nonatomic, strong) id localNetworkBrowser;
+@property(nonatomic, strong) NSMutableSet<NSString *> *bonjourNames;
 @property(nonatomic, assign) BOOL ready;
 - (void)suspend;
 - (void)resume;
@@ -335,6 +336,22 @@ static NSString *VWUUID(CBUUID *uuid) {
         nw_browser_t browser = nw_browser_create(descriptor, parameters);
         if (browser) {
             self.localNetworkBrowser = browser;
+            self.bonjourNames = [NSMutableSet new];
+            __weak typeof(self) weakSelf = self;
+            nw_browser_set_browse_results_changed_handler(browser, ^(nw_browse_result_t result, nw_browse_result_t previous, bool complete) {
+                typeof(self) strongSelf = weakSelf;
+                if (!strongSelf) return;
+                if (previous) {
+                    nw_endpoint_t oldEndpoint = nw_browse_result_copy_endpoint(previous);
+                    const char *oldName = oldEndpoint ? nw_endpoint_get_bonjour_service_name(oldEndpoint) : NULL;
+                    if (oldName) [strongSelf.bonjourNames removeObject:[NSString stringWithUTF8String:oldName]];
+                }
+                if (result) {
+                    nw_endpoint_t endpoint = nw_browse_result_copy_endpoint(result);
+                    const char *name = endpoint ? nw_endpoint_get_bonjour_service_name(endpoint) : NULL;
+                    if (name) [strongSelf.bonjourNames addObject:[NSString stringWithUTF8String:name]];
+                }
+            });
             nw_browser_set_queue(browser, dispatch_get_main_queue());
             nw_browser_set_state_changed_handler(browser, ^(nw_browser_state_t state, nw_error_t error) {
                 if (state == nw_browser_state_failed) {
@@ -353,9 +370,7 @@ static NSString *VWUUID(CBUUID *uuid) {
             GCKDevice *device = [discovery deviceAtIndex:i];
             [names addObject:device.friendlyName ?: @"Unbenannt"];
         }
-        NSString *message = count
-            ? [NSString stringWithFormat:@"Gefundene Cast-Geräte (%lu): %@", (unsigned long)count, [names componentsJoinedByString:@", "]]
-            : @"Das Google-Cast-SDK meldet aktuell 0 Geräte. Die YouTube-App findet AirServer; deshalb müssen wir als Nächstes die SDK-Erkennung und den Empfängertyp vergleichen.";
+        NSString *message = [NSString stringWithFormat:@"Cast-SDK: %lu Gerät(e)%@\\nBonjour (_googlecast._tcp): %@", (unsigned long)count, count ? [NSString stringWithFormat:@" (%@)", [names componentsJoinedByString:@", "]] : @"", self.bonjourNames.count ? [[self.bonjourNames allObjects] componentsJoinedByString:@", "] : @"keine Treffer"];
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Cast-Diagnose" message:message preferredStyle:UIAlertControllerStyleAlert];
         [alert addAction:[UIAlertAction actionWithTitle:@"Schließen" style:UIAlertActionStyleCancel handler:nil]];
         if (count) {
