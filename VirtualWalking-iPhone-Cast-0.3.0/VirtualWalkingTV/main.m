@@ -313,10 +313,11 @@ static NSString *VWUUID(CBUUID *uuid) {
     self.web = [[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration]; self.web.navigationDelegate = self; self.web.UIDelegate = self;
     self.web.translatesAutoresizingMaskIntoConstraints = NO; [self.view addSubview:self.web];
     [NSLayoutConstraint activateConstraints:@[[self.web.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],[self.web.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],[self.web.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],[self.web.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor]]];
-    UIBarButtonItem *button = [[UIBarButtonItem alloc] initWithTitle:@"TV verbinden" style:UIBarButtonItemStylePlain target:self action:@selector(connectTV)];
-    button.tintColor = UIColor.systemTealColor;
-    button.accessibilityHint = @"Öffnet die Google-Cast-Geräteauswahl.";
-    self.navigationItem.rightBarButtonItem = button;
+    GCKUICastButton *castButton = [[GCKUICastButton alloc] initWithFrame:CGRectMake(0, 0, 44, 44)];
+    castButton.tintColor = UIColor.systemTealColor;
+    castButton.accessibilityLabel = @"TV verbinden";
+    castButton.accessibilityHint = @"Öffnet die Google-Cast-Geräteauswahl.";
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithCustomView:castButton];
     self.ble = [VWBLE new]; self.ble.presenter = self; self.cast = [VWCast new];
     __weak typeof(self) weakSelf = self; VWEvent emit = ^(NSDictionary *event) { [weakSelf emit:event]; }; self.ble.emit = emit; self.cast.emit = emit; [self.cast start];
     NSString *html = [NSString stringWithContentsOfFile:[NSBundle.mainBundle pathForResource:@"native" ofType:@"html" inDirectory:@"Web"] encoding:NSUTF8StringEncoding error:nil];
