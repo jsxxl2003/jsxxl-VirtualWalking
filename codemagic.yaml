@@ -6,6 +6,7 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: latest
+    working_directory: VirtualWalking-iPhone-Cast-0.3.0
     scripts:
       - name: Build web resources
         script: python3 Scripts/build_web.py
@@ -20,4 +21,5 @@ workflows:
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO build
     artifacts:
-      - build/Build/Products/Debug-iphonesimulator/*.app
+      - VirtualWalking-iPhone-Cast-0.3.0/build/Build/Products/Debug-iphonesimulator/*.app
+
