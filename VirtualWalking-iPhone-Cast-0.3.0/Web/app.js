@@ -182,14 +182,21 @@
  }
  function telemetry(data){
   const now=performance.now();if(workout?.running)workout.tick(now,speed,fresh());
-  if(Number.isFinite(data.speed)){speed=data.speed;lastSpeedAt=now;}
+  if(Number.isFinite(data.speed)){const previousSpeed=speed;speed=data.speed;lastSpeedAt=now;
+   // A physical treadmill start is a valid start event even without pressing the app button.
+   // Trigger only on the stopped-to-moving transition, never on every telemetry packet.
+   if(bt.connected&&!starting&&!stopping&&!workout?.running&&videoKind!=='none'&&Number.isFinite(previousSpeed)&&previousSpeed<.1&&speed>=.2){
+    if(workout&&!workout.running){playVideo();beginRecording();}
+    else begin();
+   }
+  }
   if(Number.isFinite(data.distanceKm)){nativeDistance=data.distanceKm;workout?.telemetry(nativeDistance);}
   lastDataAt=now;renderWorkout();syncVideo();
  }
  function machineStatus(status){
   if(status.code===0x03||(status.code===0x02&&status.reason===0x01)){motorMayRun=false;startupAbort?.abort();speed=0;if(workout)finishRecording();else pauseVideo();announce(status.code===0x03?'Sicherheitsstopp erkannt. Die laufende Einheit wurde beendet.':'Laufband-Stopp erkannt. Die laufende Einheit wurde beendet.');}
   else if(status.code===0x02&&status.reason===0x02){startupAbort?.abort();speed=0;if(workout?.running)pause('Laufband pausiert – Aufzeichnung und Video pausiert.');else pauseVideo();}
-  else if(status.code===0x04&&workout&&!workout.running&&!starting&&!stopping)beginRecording();
+  else if(status.code===0x04&&!starting&&!stopping&&videoKind!=='none'&&bt.connected){if(workout&&!workout.running){playVideo();beginRecording();}else if(!workout)begin();}
   else if(status.code===0xff){startupAbort?.abort();pause('Steuerfreigabe verloren. Laufband am Gerät bedienen.');}
   renderWorkout();syncVideo();
  }
