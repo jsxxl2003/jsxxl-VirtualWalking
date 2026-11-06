@@ -1,9 +1,6 @@
 package de.virtualwalking.receiver;
 
 import android.app.Activity;
-import android.content.Intent;
-import android.content.ActivityNotFoundException;
-import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -93,25 +90,6 @@ public class MainActivity extends Activity {
             + "function vwRate(v){if(player&&player.setPlaybackRate)player.setPlaybackRate(v);}"
             + "</script></body></html>";
     }
-    private void openNativeYouTube(String id) {
-        ui.post(() -> {
-            try {
-                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=" + id));
-                intent.setPackage("com.google.android.youtube.tv");
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(intent);
-            } catch (ActivityNotFoundException noTVApp) {
-                try {
-                    Intent fallback = new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=" + id));
-                    fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(fallback);
-                } catch (Exception e) {
-                    label.setVisibility(View.VISIBLE);
-                    label.setText("YouTube-App konnte nicht gestartet werden: " + e.getMessage());
-                }
-            }
-        });
-    }
     private void js(String command) { ui.post(() -> web.evaluateJavascript(command, null)); }
     private void serve() {
         try (ServerSocket server = new ServerSocket(8765)) {
@@ -148,7 +126,7 @@ public class MainActivity extends Activity {
                 if ("/play".equals(route)) {
                     String id = args.getOrDefault("id", "");
                     if (!id.matches("[A-Za-z0-9_-]{11}")) { code = 400; result.put("error", "Ungültige YouTube-ID"); }
-                    else { videoId = id; state = "requested"; openNativeYouTube(id); ui.post(() -> label.setVisibility(View.GONE)); }
+                    else { videoId = id; state = "requested"; js("vwPlay(" + JSONObject.quote(id) + ")"); ui.post(() -> label.setVisibility(View.GONE)); }
                 } else if ("/pause".equals(route)) { js("vwPause()"); state = "pause-requested"; }
                 else if ("/resume".equals(route)) { js("vwResume()"); state = "resume-requested"; }
                 else if ("/rate".equals(route)) {
@@ -156,7 +134,7 @@ public class MainActivity extends Activity {
                     catch (Exception e) { code = 400; result.put("error", "Geschwindigkeit außerhalb 0.25–2.0"); }
                 } else if (!"/status".equals(route)) { code = 404; result.put("error", "Unbekannter Befehl"); }
                 result.put("videoId", videoId); result.put("state", state); result.put("requestedRate", rate);
-                result.put("note", "Video wird in der nativen YouTube-TV-App geöffnet. Pause/Tempo aus der Empfänger-App sind dort noch nicht steuerbar.");
+                result.put("note", "Befehl angenommen; tatsächlicher Playerstatus nicht bestätigt.");
             }
             byte[] body = result.toString().getBytes(StandardCharsets.UTF_8);
             OutputStream out = s.getOutputStream();
