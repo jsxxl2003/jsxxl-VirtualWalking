@@ -50,10 +50,9 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
     BOOL allowed = ([type isEqualToString:@"CONNECT"] && [nameSpace isEqualToString:@"urn:x-cast:com.google.cast.tp.connection"]) ||
         ([type isEqualToString:@"GET_STATUS"] && ([nameSpace isEqualToString:@"urn:x-cast:com.google.cast.receiver"] || [nameSpace isEqualToString:@"urn:x-cast:com.google.cast.media"])) ||
         ([type isEqualToString:@"PONG"] && [nameSpace isEqualToString:@"urn:x-cast:com.google.cast.tp.heartbeat"]) ||
-        ([type isEqualToString:@"LAUNCH"] && [nameSpace isEqualToString:@"urn:x-cast:com.google.cast.receiver"] && [destination isEqualToString:@"receiver-0"]) ||
-        ([type isEqualToString:@"LOAD"] && [nameSpace isEqualToString:@"urn:x-cast:com.google.cast.media"] && self.videoID.length == 11);
+        ([type isEqualToString:@"LAUNCH"] && [nameSpace isEqualToString:@"urn:x-cast:com.google.cast.receiver"] && [destination isEqualToString:@"receiver-0"]);
     if (!allowed || self.finished) return;
-    NSDictionary *command = [type isEqualToString:@"LAUNCH"] ? @{@"type":@"LAUNCH",@"appId":@"233637DE",@"requestId":@2} : [type isEqualToString:@"LOAD"] ? @{@"type":@"LOAD",@"requestId":@3,@"autoplay":@YES,@"media":@{@"contentId":[@"https://www.youtube.com/watch?v=" stringByAppendingString:self.videoID],@"contentType":@"video/mp4",@"streamType":@"BUFFERED"}} : @{@"type":type,@"requestId":@1};
+    NSDictionary *command = [type isEqualToString:@"LAUNCH"] ? @{@"type":@"LAUNCH",@"appId":@"233637DE",@"requestId":@2} : @{@"type":type,@"requestId":@1};
     NSData *json = [NSJSONSerialization dataWithJSONObject:command options:0 error:nil];
     NSString *payload = [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding];
     uint8_t bytes[4096]; size_t length = VWProbeEncode(bytes, sizeof(bytes), destination.UTF8String, nameSpace.UTF8String, payload.UTF8String);
@@ -80,6 +79,19 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
             }
             [self.mediaEvents addObject:event]; self.result[@"mediaEvents"] = [self.mediaEvents copy];
         }
+    }
+    if ([nameSpace isEqualToString:@"urn:x-cast:com.google.youtube.mdx"] && [type isEqualToString:@"mdxSessionStatus"]) {
+        // Report only field names and value types. Session tokens and pairing credentials stay on-device.
+        NSMutableDictionary *shape = [NSMutableDictionary new];
+        for (NSString *key in body) {
+            id value = body[key];
+            shape[key] = [value isKindOfClass:NSDictionary.class] ? @"object" :
+                [value isKindOfClass:NSArray.class] ? @"array" :
+                [value isKindOfClass:NSString.class] ? @"string" :
+                [value isKindOfClass:NSNumber.class] ? @"number" : @"other";
+        }
+        self.result[@"mdxSessionFieldTypes"] = shape;
+        self.result[@"mdxSessionStatusReceived"] = @YES;
     }
     if ([nameSpace isEqualToString:@"urn:x-cast:com.google.cast.tp.heartbeat"] && [type isEqualToString:@"PING"]) {
         [self send:@"PONG" destination:VWProbeSliceText(envelope.source) nameSpace:nameSpace]; return;
@@ -115,8 +127,9 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
                     [self send:@"CONNECT" destination:transport nameSpace:@"urn:x-cast:com.google.cast.tp.connection"];
                     // Query the existing media session before testing playback. Do not guess MDX commands.
                     [self send:@"GET_STATUS" destination:transport nameSpace:@"urn:x-cast:com.google.cast.media"];
-                    [self send:@"LOAD" destination:transport nameSpace:@"urn:x-cast:com.google.cast.media"];
-                    self.result[@"videoLoadSent"] = @YES;
+                    self.result[@"videoLoadSent"] = @NO;
+                    self.result[@"mdxHandshakeInspection"] = @YES;
+                    self.result[@"note"] = @"Ungültiger LOAD-Befehl entfernt. MDX-Sessionstatus wird ohne Offenlegung von Tokens untersucht.";
                 }
                 return;
             }
@@ -208,7 +221,7 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
     nw_connection_start(self.connection);
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (launch ? 8 : 5) * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         typeof(self) self = weakSelf; if (!self || self.finished) return;
-        if (self.videoID.length) self.result[@"note"] = @"MDX ist angekündigt, aber nicht automatisch steuerbar. Ein LOAD-Befehl ohne PLAYING bestätigt keinen Videostart.";
+        if (self.videoID.length) self.result[@"note"] = @"MDX-Status geprüft; noch kein authentifizierter YouTube-Wiedergabeauftrag implementiert.";
         else self.result[@"note"] = @"Zeitlimit: Eine ausbleibende Antwort beweist keine fehlende Unterstützung.";
         [self finish];
     });
@@ -398,7 +411,7 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
     self.videoField.autocorrectionType = UITextAutocorrectionTypeNo;
     self.videoField.text = [NSUserDefaults.standardUserDefaults dictionaryForKey:@"VWLastYouTubeVideo"][@"id"];
     UIButton *video = [UIButton buttonWithType:UIButtonTypeSystem];
-    [video setTitle:@"Video auf TV testen" forState:UIControlStateNormal];
+    [video setTitle:@"YouTube-MDX-Verbindung prüfen" forState:UIControlStateNormal];
     [video addTarget:self action:@selector(loadVideo) forControlEvents:UIControlEventTouchUpInside];
     self.output = [UITextView new]; self.output.editable = NO; self.output.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody]; self.output.text = @"Bereit. Die Prüfung startet keine TV-App und verändert keine Wiedergabe.";
     UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[hint,self.address,start,launch,self.videoField,video,self.output]]; stack.axis = UILayoutConstraintAxisVertical; stack.spacing = 12; stack.translatesAutoresizingMaskIntoConstraints = NO; [self.view addSubview:stack];
@@ -444,16 +457,16 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
         self.output.text = @"Gültige TV-IPv4-Adresse und 11-stellige YouTube-Video-ID erforderlich."; return;
     }
     [self.launchProbe cancel]; self.launchProbe = [VWReadOnlyCastProbe new];
-    self.output.text = @"Video-Startbefehl wird an den YouTube-Cast-Empfänger gesendet …";
+    self.output.text = @"YouTube-MDX-Verbindungsstatus wird geprüft …";
     __weak typeof(self) weakSelf = self;
     [self.launchProbe startHost:host videoID:videoID completion:^(NSDictionary *result) {
         typeof(self) self = weakSelf; if (!self) return;
         self.records = @[result];
-        self.output.text = [NSString stringWithFormat:@"Videotest (noch kein bestätigter Stream)\n\n%@",result];
+        self.output.text = [NSString stringWithFormat:@"MDX-Verbindungstest (ohne Videostart)\n\n%@",result];
     }];
 }
 - (void)share {
-    NSDictionary *report = @{@"version":@"0.3.3",@"capturedAt":[[NSISO8601DateFormatter new] stringFromDate:NSDate.date],@"mode":@"read-only",@"target":self.address.text ?: @"",@"records":self.records ?: @[],@"scanComplete":@(self.probe.stopped),@"liveStreamingTested":@NO};
+    NSDictionary *report = @{@"version":@"0.3.7",@"capturedAt":[[NSISO8601DateFormatter new] stringFromDate:NSDate.date],@"mode":@"read-only",@"target":self.address.text ?: @"",@"records":self.records ?: @[],@"scanComplete":@(self.probe.stopped),@"liveStreamingTested":@NO};
     NSData *data = [NSJSONSerialization dataWithJSONObject:report options:NSJSONWritingPrettyPrinted error:nil]; if (!data) return;
     NSURL *url = [[NSURL fileURLWithPath:NSTemporaryDirectory()] URLByAppendingPathComponent:@"VirtualWalking-AirServer-iPhone.json"]; if (![data writeToURL:url atomically:YES]) return;
     UIActivityViewController *share = [[UIActivityViewController alloc] initWithActivityItems:@[url] applicationActivities:nil]; share.popoverPresentationController.barButtonItem = self.navigationItem.rightBarButtonItem; [self presentViewController:share animated:YES completion:nil];
