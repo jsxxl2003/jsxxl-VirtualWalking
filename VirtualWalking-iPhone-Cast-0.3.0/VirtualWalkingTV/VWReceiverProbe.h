@@ -28,8 +28,12 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
 @property(nonatomic, assign) BOOL mediaRequested;
 @property(nonatomic, assign) BOOL launchRequested;
 @property(nonatomic, assign) BOOL launchSent;
+@property(nonatomic, copy) NSString *videoID;
+@property(nonatomic, copy) NSString *sessionID;
+@property(nonatomic, assign) BOOL loadSent;
 - (void)startHost:(NSString *)host port:(NSInteger)port completion:(void (^)(NSDictionary *))completion;
 - (void)startHost:(NSString *)host port:(NSInteger)port launch:(BOOL)launch completion:(void (^)(NSDictionary *))completion;
+- (void)startHost:(NSString *)host videoID:(NSString *)videoID completion:(void (^)(NSDictionary *))completion;
 - (void)cancel;
 @end
 @implementation VWReadOnlyCastProbe
@@ -44,9 +48,10 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
     BOOL allowed = ([type isEqualToString:@"CONNECT"] && [nameSpace isEqualToString:@"urn:x-cast:com.google.cast.tp.connection"]) ||
         ([type isEqualToString:@"GET_STATUS"] && ([nameSpace isEqualToString:@"urn:x-cast:com.google.cast.receiver"] || [nameSpace isEqualToString:@"urn:x-cast:com.google.cast.media"])) ||
         ([type isEqualToString:@"PONG"] && [nameSpace isEqualToString:@"urn:x-cast:com.google.cast.tp.heartbeat"]) ||
-        ([type isEqualToString:@"LAUNCH"] && [nameSpace isEqualToString:@"urn:x-cast:com.google.cast.receiver"] && [destination isEqualToString:@"receiver-0"]);
+        ([type isEqualToString:@"LAUNCH"] && [nameSpace isEqualToString:@"urn:x-cast:com.google.cast.receiver"] && [destination isEqualToString:@"receiver-0"]) ||
+        ([type isEqualToString:@"LOAD"] && [nameSpace isEqualToString:@"urn:x-cast:com.google.cast.media"] && self.videoID.length == 11);
     if (!allowed || self.finished) return;
-    NSDictionary *command = [type isEqualToString:@"LAUNCH"] ? @{@"type":@"LAUNCH",@"appId":@"233637DE",@"requestId":@2} : @{@"type":type,@"requestId":@1};
+    NSDictionary *command = [type isEqualToString:@"LAUNCH"] ? @{@"type":@"LAUNCH",@"appId":@"233637DE",@"requestId":@2} : [type isEqualToString:@"LOAD"] ? @{@"type":@"LOAD",@"requestId":@3,@"autoplay":@YES,@"media":@{@"contentId":[@"https://www.youtube.com/watch?v=" stringByAppendingString:self.videoID],@"contentType":@"video/mp4",@"streamType":@"BUFFERED"}} : @{@"type":type,@"requestId":@1};
     NSData *json = [NSJSONSerialization dataWithJSONObject:command options:0 error:nil];
     NSString *payload = [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding];
     uint8_t bytes[4096]; size_t length = VWProbeEncode(bytes, sizeof(bytes), destination.UTF8String, nameSpace.UTF8String, payload.UTF8String);
@@ -84,7 +89,20 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
         if (self.launchRequested) {
             BOOL running = NO;
             for (NSDictionary *app in descriptions) if ([app[@"appId"] isEqualToString:@"233637DE"]) running = YES;
-            if (running) { self.result[@"youtubeRunning"] = @YES; [self finish]; return; }
+            if (running) {
+                self.result[@"youtubeRunning"] = @YES;
+                if (!self.videoID.length) { [self finish]; return; }
+                NSDictionary *app = nil;
+                for (NSDictionary *item in apps) if ([item[@"appId"] isEqualToString:@"233637DE"]) { app = item; break; }
+                NSString *transport = VWProbeText(app[@"transportId"]);
+                if (transport.length && !self.loadSent) {
+                    self.loadSent = YES;
+                    [self send:@"CONNECT" destination:transport nameSpace:@"urn:x-cast:com.google.cast.tp.connection"];
+                    [self send:@"LOAD" destination:transport nameSpace:@"urn:x-cast:com.google.cast.media"];
+                    self.result[@"videoLoadSent"] = @YES;
+                }
+                return;
+            }
             if (!self.launchSent) {
                 self.launchSent = YES;
                 [self send:@"LAUNCH" destination:@"receiver-0" nameSpace:@"urn:x-cast:com.google.cast.receiver"];
@@ -111,6 +129,8 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
             [media addObject:safe];
         }
         self.result[@"media"] = media; [self finish];
+    } else if ([nameSpace isEqualToString:@"urn:x-cast:com.google.cast.media"] && [type isEqualToString:@"LOAD_FAILED"]) {
+        self.result[@"videoLoadFailed"] = @YES; [self finish];
     } else if ([nameSpace isEqualToString:@"urn:x-cast:com.google.cast.receiver"] && [type isEqualToString:@"LAUNCH_ERROR"]) {
         self.result[@"launchError"] = VWProbeText(body[@"reason"]); [self finish];
     }
@@ -137,6 +157,10 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
 }
 - (void)startHost:(NSString *)host port:(NSInteger)port completion:(void (^)(NSDictionary *))completion {
     [self startHost:host port:port launch:NO completion:completion];
+}
+- (void)startHost:(NSString *)host videoID:(NSString *)videoID completion:(void (^)(NSDictionary *))completion {
+    self.videoID = videoID;
+    [self startHost:host port:8009 launch:YES completion:completion];
 }
 - (void)startHost:(NSString *)host port:(NSInteger)port launch:(BOOL)launch completion:(void (^)(NSDictionary *))completion {
     self.launchRequested = launch;
@@ -328,6 +352,7 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
 @property(nonatomic, strong) VWReceiverProbe *probe;
 @property(nonatomic, strong) UITextView *output;
 @property(nonatomic, strong) UITextField *address;
+@property(nonatomic, strong) UITextField *videoField;
 @property(nonatomic, strong) NSArray *records;
 @property(nonatomic, strong) VWReadOnlyCastProbe *launchProbe;
 @end
@@ -342,8 +367,16 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
     UIButton *launch = [UIButton buttonWithType:UIButtonTypeSystem];
     [launch setTitle:@"YouTube auf TV starten (Direkt-IP-Test)" forState:UIControlStateNormal];
     [launch addTarget:self action:@selector(launchYouTube) forControlEvents:UIControlEventTouchUpInside];
+    self.videoField = [UITextField new]; self.videoField.borderStyle = UITextBorderStyleRoundedRect;
+    self.videoField.placeholder = @"YouTube-Video-ID (11 Zeichen)";
+    self.videoField.autocapitalizationType = UITextAutocapitalizationTypeNone;
+    self.videoField.autocorrectionType = UITextAutocorrectionTypeNo;
+    self.videoField.text = [NSUserDefaults.standardUserDefaults dictionaryForKey:@"VWLastYouTubeVideo"][@"id"];
+    UIButton *video = [UIButton buttonWithType:UIButtonTypeSystem];
+    [video setTitle:@"Video auf TV testen" forState:UIControlStateNormal];
+    [video addTarget:self action:@selector(loadVideo) forControlEvents:UIControlEventTouchUpInside];
     self.output = [UITextView new]; self.output.editable = NO; self.output.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody]; self.output.text = @"Bereit. Die Prüfung startet keine TV-App und verändert keine Wiedergabe.";
-    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[hint,self.address,start,launch,self.output]]; stack.axis = UILayoutConstraintAxisVertical; stack.spacing = 12; stack.translatesAutoresizingMaskIntoConstraints = NO; [self.view addSubview:stack];
+    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[hint,self.address,start,launch,self.videoField,video,self.output]]; stack.axis = UILayoutConstraintAxisVertical; stack.spacing = 12; stack.translatesAutoresizingMaskIntoConstraints = NO; [self.view addSubview:stack];
     [NSLayoutConstraint activateConstraints:@[[stack.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:16],[stack.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:16],[stack.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-16],[stack.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor constant:-16],[self.address.heightAnchor constraintEqualToConstant:44]]];
 }
 - (void)run {
@@ -376,6 +409,22 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
         NSString *status = running ? @"YouTube-TV-App läuft laut Cast-Empfänger." : [result[@"launchError"] isKindOfClass:NSString.class] ? [NSString stringWithFormat:@"YouTube-Start abgelehnt: %@",result[@"launchError"]] : [result[@"launchCommandSent"] boolValue] ? @"Startbefehl gesendet, Ausführung nicht bestätigt." : @"Direkte Verbindung oder Start fehlgeschlagen.";
         self.output.text = [NSString stringWithFormat:@"%@\n\n%@",status,result];
         self.records = @[result];
+    }];
+}
+- (void)loadVideo {
+    NSString *host = [self.address.text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    NSString *videoID = [self.videoField.text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    NSRegularExpression *pattern = [NSRegularExpression regularExpressionWithPattern:@"^[A-Za-z0-9_-]{11}$" options:0 error:nil];
+    if (!VWProbePrivateAddress(host) || [pattern numberOfMatchesInString:videoID options:0 range:NSMakeRange(0,videoID.length)] != 1) {
+        self.output.text = @"Gültige TV-IPv4-Adresse und 11-stellige YouTube-Video-ID erforderlich."; return;
+    }
+    [self.launchProbe cancel]; self.launchProbe = [VWReadOnlyCastProbe new];
+    self.output.text = @"Video-Startbefehl wird an den YouTube-Cast-Empfänger gesendet …";
+    __weak typeof(self) weakSelf = self;
+    [self.launchProbe startHost:host videoID:videoID completion:^(NSDictionary *result) {
+        typeof(self) self = weakSelf; if (!self) return;
+        self.records = @[result];
+        self.output.text = [NSString stringWithFormat:@"Videotest (noch kein bestätigter Stream)\n\n%@",result];
     }];
 }
 - (void)share {
