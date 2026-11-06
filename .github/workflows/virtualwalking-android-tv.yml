@@ -1,10 +1,6 @@
 name: VirtualWalking Android TV APK
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'VirtualWalking-TV-Receiver/**'
-      - '.github/workflows/virtualwalking-android-tv.yml'
 jobs:
   build:
     runs-on: ubuntu-latest
