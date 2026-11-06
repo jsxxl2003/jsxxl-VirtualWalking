@@ -7,6 +7,7 @@
 #import <AVKit/AVKit.h>
 #import <AVFoundation/AVFoundation.h>
 #import <math.h>
+#import <objc/message.h>
 #import "VWReceiverProbe.h"
 
 typedef void (^VWReply)(id value, NSString *error, NSString *name);
@@ -311,7 +312,7 @@ static NSString *VWUUID(CBUUID *uuid) {
 }
 - (void)emit:(NSDictionary *)event { if (self.ready) [self call:@"__vwNativeEvent" value:event]; }
 - (void)viewDidLoad {
-    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.0"; self.token = NSUUID.UUID.UUIDString;
+    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.1"; self.token = NSUUID.UUID.UUIDString;
     NSString *bridgePath = [NSBundle.mainBundle pathForResource:@"native-bridge" ofType:@"js" inDirectory:@"Web"];
     NSString *bridge = [NSString stringWithContentsOfFile:bridgePath encoding:NSUTF8StringEncoding error:nil];
     NSData *tokenData = [NSJSONSerialization dataWithJSONObject:@[self.token] options:0 error:nil];
@@ -348,6 +349,27 @@ static NSString *VWUUID(CBUUID *uuid) {
         VWReceiverProbeController *probe = [VWReceiverProbeController new];
         UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:probe];
         [weakSelf presentViewController:navigation animated:YES completion:nil];
+    }]];
+    [choice addAction:[UIAlertAction actionWithTitle:@"Philips direkt verbinden (192.168.0.53)" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        // Explicit IP fallback for receivers whose mDNS resolution fails.
+        GCKSessionManager *manager = [GCKCastContext sharedInstance].sessionManager;
+        SEL initializer = NSSelectorFromString(@"initWithDeviceID:ipAddress:servicePort:");
+        SEL starter = NSSelectorFromString(@"startSessionWithDevice:");
+        if (![GCKDevice instancesRespondToSelector:initializer] || ![manager respondsToSelector:starter]) {
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Direktverbindung" message:@"Diese Cast-SDK-Version unterstützt die benötigte direkte Geräteverbindung nicht." preferredStyle:UIAlertControllerStyleAlert];
+            [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+            [weakSelf presentViewController:alert animated:YES completion:nil];
+            return;
+        }
+        typedef id (*VWDeviceInit)(id, SEL, NSString *, NSString *, uint16_t);
+        GCKDevice *device = ((VWDeviceInit)objc_msgSend)([GCKDevice alloc], initializer, @"virtualwalking-philips-192-168-0-53", @"192.168.0.53", 8009);
+        if (!device) return;
+        typedef BOOL (*VWStartSession)(id, SEL, id);
+        BOOL started = ((VWStartSession)objc_msgSend)(manager, starter, device);
+        NSString *message = started ? @"Sitzungsaufbau zum Philips gestartet. Der tatsächliche Verbindungsstatus wird anschließend geprüft." : @"Das Cast-SDK hat den Sitzungsaufbau abgelehnt. Der Philips ist zwar per Direkt-IP erreichbar, aber nicht als SDK-Gerät verbunden.";
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Philips · Direkt-IP" message:message preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+        [weakSelf presentViewController:alert animated:YES completion:nil];
     }]];
     [choice addAction:[UIAlertAction actionWithTitle:@"Cast-Geräteauswahl" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         [[GCKCastContext sharedInstance].discoveryManager startDiscovery];
