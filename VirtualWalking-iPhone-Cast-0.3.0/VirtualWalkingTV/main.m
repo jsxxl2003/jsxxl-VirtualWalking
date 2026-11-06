@@ -451,6 +451,15 @@ static BOOL VWPhilipsDevicePublished = NO;
             /* old dialog removed */
         });
     }]];
+    [choice addAction:[UIAlertAction actionWithTitle:@"waipu.tv · Cast-Protokoll prüfen" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        VWReceiverProbeController *probe = [VWReceiverProbeController new];
+        UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:probe];
+        [weakSelf presentViewController:navigation animated:YES completion:^{
+            probe.title = @"waipu.tv · Protokolltest";
+            probe.address.text = @"192.168.0.32";
+            [probe run];
+        }];
+    }]];
     [choice addAction:[UIAlertAction actionWithTitle:@"AirServer prüfen" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         VWReceiverProbeController *probe = [VWReceiverProbeController new];
         UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:probe];
