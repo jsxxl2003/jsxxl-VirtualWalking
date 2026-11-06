@@ -20,6 +20,29 @@ static NSString *VWUUID(CBUUID *uuid) {
     return value.length == 4 ? [NSString stringWithFormat:@"0000%@-0000-1000-8000-00805f9b34fb", value] : value;
 }
 
+
+static GCKCastOptions *VWDirectCastOptions;
+@interface VWPhilipsProvider : GCKDeviceProvider
+@property(nonatomic, strong) GCKDevice *philips;
+@end
+@implementation VWPhilipsProvider
+- (instancetype)init {
+    if ((self = [super initWithDeviceCategory:@"virtualwalking.philips.direct"])) {
+        self.philips = [self createDeviceWithID:@"virtualwalking-philips-192-168-0-53" ipAddress:@"192.168.0.53" servicePort:8009];
+        self.philips.friendlyName = @"Philips Ambilight · Direkt-IP";
+    }
+    return self;
+}
+- (void)startDiscovery {
+    [self notifyDidStartDiscovery];
+    if (self.philips) [self notifyDidPublishDevice:self.philips];
+}
+- (void)stopDiscovery {}
+- (GCKSession *)createSessionForDevice:(GCKDevice *)device sessionID:(NSString *)sessionID sessionOptions:(GCKSessionOptions *)sessionOptions {
+    return [[GCKCastSession alloc] initWithDevice:device sessionID:sessionID sessionOptions:sessionOptions castOptions:VWDirectCastOptions];
+}
+@end
+
 @interface VWPicker : UITableViewController
 @property(nonatomic, strong) NSMutableArray<CBPeripheral *> *devices;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *names;
@@ -312,7 +335,7 @@ static NSString *VWUUID(CBUUID *uuid) {
 }
 - (void)emit:(NSDictionary *)event { if (self.ready) [self call:@"__vwNativeEvent" value:event]; }
 - (void)viewDidLoad {
-    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.1"; self.token = NSUUID.UUID.UUIDString;
+    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.2"; self.token = NSUUID.UUID.UUIDString;
     NSString *bridgePath = [NSBundle.mainBundle pathForResource:@"native-bridge" ofType:@"js" inDirectory:@"Web"];
     NSString *bridge = [NSString stringWithContentsOfFile:bridgePath encoding:NSUTF8StringEncoding error:nil];
     NSData *tokenData = [NSJSONSerialization dataWithJSONObject:@[self.token] options:0 error:nil];
@@ -351,25 +374,19 @@ static NSString *VWUUID(CBUUID *uuid) {
         [weakSelf presentViewController:navigation animated:YES completion:nil];
     }]];
     [choice addAction:[UIAlertAction actionWithTitle:@"Philips direkt verbinden (192.168.0.53)" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        // Explicit IP fallback for receivers whose mDNS resolution fails.
-        GCKSessionManager *manager = [GCKCastContext sharedInstance].sessionManager;
-        SEL initializer = NSSelectorFromString(@"initWithDeviceID:ipAddress:servicePort:");
-        SEL starter = NSSelectorFromString(@"startSessionWithDevice:");
-        if (![GCKDevice instancesRespondToSelector:initializer] || ![manager respondsToSelector:starter]) {
-            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Direktverbindung" message:@"Diese Cast-SDK-Version unterstützt die benötigte direkte Geräteverbindung nicht." preferredStyle:UIAlertControllerStyleAlert];
-            [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-            [weakSelf presentViewController:alert animated:YES completion:nil];
+        GCKDiscoveryManager *discovery = [GCKCastContext sharedInstance].discoveryManager;
+        [discovery startDiscovery];
+        GCKDevice *device = [discovery deviceWithUniqueID:@"virtualwalking-philips-192-168-0-53"];
+        if (!device) {
+            [[GCKCastContext sharedInstance] presentCastDialog];
             return;
         }
-        typedef id (*VWDeviceInit)(id, SEL, NSString *, NSString *, uint16_t);
-        GCKDevice *device = ((VWDeviceInit)objc_msgSend)([GCKDevice alloc], initializer, @"virtualwalking-philips-192-168-0-53", @"192.168.0.53", 8009);
-        if (!device) return;
-        typedef BOOL (*VWStartSession)(id, SEL, id);
-        BOOL started = ((VWStartSession)objc_msgSend)(manager, starter, device);
-        NSString *message = started ? @"Sitzungsaufbau zum Philips gestartet. Der tatsächliche Verbindungsstatus wird anschließend geprüft." : @"Das Cast-SDK hat den Sitzungsaufbau abgelehnt. Der Philips ist zwar per Direkt-IP erreichbar, aber nicht als SDK-Gerät verbunden.";
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Philips · Direkt-IP" message:message preferredStyle:UIAlertControllerStyleAlert];
-        [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-        [weakSelf presentViewController:alert animated:YES completion:nil];
+        BOOL started = [[GCKCastContext sharedInstance].sessionManager startSessionWithDevice:device];
+        if (!started) {
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Philips · Direkt-IP" message:@"Der Cast-Sitzungsmanager konnte den Verbindungsaufbau nicht starten." preferredStyle:UIAlertControllerStyleAlert];
+            [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+            [weakSelf presentViewController:alert animated:YES completion:nil];
+        }
     }]];
     [choice addAction:[UIAlertAction actionWithTitle:@"Cast-Geräteauswahl" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         [[GCKCastContext sharedInstance].discoveryManager startDiscovery];
@@ -445,7 +462,9 @@ static NSString *VWUUID(CBUUID *uuid) {
     GCKDiscoveryCriteria *criteria = [[GCKDiscoveryCriteria alloc] initWithApplicationID:VWYouTubeReceiver];
     GCKCastOptions *options = [[GCKCastOptions alloc] initWithDiscoveryCriteria:criteria];
     options.launchOptions = [[GCKLaunchOptions alloc] initWithRelaunchIfRunning:NO]; options.stopReceiverApplicationWhenEndingSession = NO; options.disableAnalyticsLogging = YES;
+    VWDirectCastOptions = options;
     [GCKCastContext setSharedInstanceWithOptions:options];
+    [[GCKCastContext sharedInstance] registerDeviceProvider:[VWPhilipsProvider new]];
     return YES;
 }
 @end
