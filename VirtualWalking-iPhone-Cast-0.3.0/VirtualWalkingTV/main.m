@@ -4,6 +4,8 @@
 #import <SafariServices/SafariServices.h>
 #import <GoogleCast/GoogleCast.h>
 #import <Network/Network.h>
+#import <AVKit/AVKit.h>
+#import <AVFoundation/AVFoundation.h>
 #import <math.h>
 
 typedef void (^VWReply)(id value, NSString *error, NSString *name);
@@ -304,7 +306,7 @@ static NSString *VWUUID(CBUUID *uuid) {
 }
 - (void)emit:(NSDictionary *)event { if (self.ready) [self call:@"__vwNativeEvent" value:event]; }
 - (void)viewDidLoad {
-    [super viewDidLoad]; self.title = @"VirtualWalking · 0.3.1"; self.token = NSUUID.UUID.UUIDString;
+    [super viewDidLoad]; self.title = @"VirtualWalking · 0.3.2"; self.token = NSUUID.UUID.UUIDString;
     NSString *bridgePath = [NSBundle.mainBundle pathForResource:@"native-bridge" ofType:@"js" inDirectory:@"Web"];
     NSString *bridge = [NSString stringWithContentsOfFile:bridgePath encoding:NSUTF8StringEncoding error:nil];
     NSData *tokenData = [NSJSONSerialization dataWithJSONObject:@[self.token] options:0 error:nil];
@@ -319,7 +321,15 @@ static NSString *VWUUID(CBUUID *uuid) {
     UIBarButtonItem *button = [[UIBarButtonItem alloc] initWithTitle:@"TV verbinden" style:UIBarButtonItemStylePlain target:self action:@selector(connectTV)];
     button.tintColor = UIColor.systemTealColor;
     button.accessibilityHint = @"Öffnet die Cast-Geräteauswahl mit Diagnosehinweis.";
-    self.navigationItem.rightBarButtonItem = button;
+    // Native AirPlay sender route discovery, independent of Google Cast.
+    // A route must actually appear and be selected before media routing can be tested.
+    AVRoutePickerView *airPlayPicker = [[AVRoutePickerView alloc] initWithFrame:CGRectMake(0, 0, 42, 36)];
+    airPlayPicker.activeTintColor = UIColor.systemPurpleColor;
+    airPlayPicker.tintColor = UIColor.systemTealColor;
+    airPlayPicker.prioritizesVideoDevices = YES;
+    airPlayPicker.accessibilityLabel = @"AirPlay-Empfänger suchen";
+    UIBarButtonItem *airPlayItem = [[UIBarButtonItem alloc] initWithCustomView:airPlayPicker];
+    self.navigationItem.rightBarButtonItems = @[button, airPlayItem];
     self.ble = [VWBLE new]; self.ble.presenter = self; self.cast = [VWCast new];
     __weak typeof(self) weakSelf = self; VWEvent emit = ^(NSDictionary *event) { [weakSelf emit:event]; }; self.ble.emit = emit; self.cast.emit = emit; [self.cast start];
     NSString *html = [NSString stringWithContentsOfFile:[NSBundle.mainBundle pathForResource:@"native" ofType:@"html" inDirectory:@"Web"] encoding:NSUTF8StringEncoding error:nil];
