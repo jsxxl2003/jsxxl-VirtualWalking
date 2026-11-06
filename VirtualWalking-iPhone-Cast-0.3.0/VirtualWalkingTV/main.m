@@ -383,7 +383,7 @@ static BOOL VWPhilipsDevicePublished = NO;
             for (NSUInteger i = 0; i < discovery.deviceCount; i++) {
                 GCKDevice *device = [discovery deviceAtIndex:i];
                 NSString *name = device.friendlyName ?: @"Unbenannt";
-                NSString *address = device.networkAddress ?: @"";
+                NSString *address = device.networkAddress ? [device.networkAddress description] : @"";
                 [visible addObject:[NSString stringWithFormat:@"%@ (%@)", name, address]];
                 if ([address isEqualToString:@"192.168.0.32"] || [name.lowercaseString containsString:@"waipu"]) {
                     [matches addObject:device];
