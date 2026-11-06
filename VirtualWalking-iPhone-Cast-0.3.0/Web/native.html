@@ -494,7 +494,7 @@
     if(playbackProbe!==probe||probe.waitingPause)return;
     if(signal.aborted||document.hidden||generation!==sourceGeneration){probe.fail(Error('Start abgebrochen.'));return;}
     wantedVideo=true;beltPaused=false;
-    if(hold){probe.waitingPause=true;pauseVideo();if(videoKind!=='youtube'&&$('video').paused)probe.paused();}
+    if(hold){probe.waitingPause=true;pauseVideo(true);if(videoKind!=='youtube'&&$('video').paused)probe.paused();}
     else{clean();resolve();}
    },paused:()=>{if(playbackProbe===probe&&probe.waitingPause){clean();resolve();}},fail:error=>{if(playbackProbe!==probe)return;clean();pauseVideo();reject(error);}};
    playbackProbe=probe;signal.addEventListener('abort',abort,{once:true});
