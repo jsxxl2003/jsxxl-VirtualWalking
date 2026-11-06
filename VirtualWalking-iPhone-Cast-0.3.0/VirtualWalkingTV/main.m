@@ -30,10 +30,11 @@ static BOOL VWPhilipsDevicePublished = NO;
 @end
 @implementation VWPhilipsProvider
 - (instancetype)init {
-    if ((self = [super initWithDeviceCategory:@"virtualwalking.philips.direct"])) {
+    if ((self = [super initWithDeviceCategory:kGCKCastDeviceCategory])) {
         self.philips = [self createDeviceWithID:@"virtualwalking-philips-192-168-0-53" ipAddress:@"192.168.0.53" servicePort:8009];
         VWPhilipsDeviceCreated = self.philips != nil;
         self.philips.friendlyName = @"Philips Ambilight · Direkt-IP";
+        self.philips.statusText = @"VirtualWalking · Direkt-IP";
     }
     return self;
 }
@@ -340,7 +341,7 @@ static BOOL VWPhilipsDevicePublished = NO;
 }
 - (void)emit:(NSDictionary *)event { if (self.ready) [self call:@"__vwNativeEvent" value:event]; }
 - (void)viewDidLoad {
-    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.5"; self.token = NSUUID.UUID.UUIDString;
+    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.6"; self.token = NSUUID.UUID.UUIDString;
     NSString *bridgePath = [NSBundle.mainBundle pathForResource:@"native-bridge" ofType:@"js" inDirectory:@"Web"];
     NSString *bridge = [NSString stringWithContentsOfFile:bridgePath encoding:NSUTF8StringEncoding error:nil];
     NSData *tokenData = [NSJSONSerialization dataWithJSONObject:@[self.token] options:0 error:nil];
