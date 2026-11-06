@@ -335,7 +335,7 @@ static GCKCastOptions *VWDirectCastOptions;
 }
 - (void)emit:(NSDictionary *)event { if (self.ready) [self call:@"__vwNativeEvent" value:event]; }
 - (void)viewDidLoad {
-    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.2"; self.token = NSUUID.UUID.UUIDString;
+    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.3"; self.token = NSUUID.UUID.UUIDString;
     NSString *bridgePath = [NSBundle.mainBundle pathForResource:@"native-bridge" ofType:@"js" inDirectory:@"Web"];
     NSString *bridge = [NSString stringWithContentsOfFile:bridgePath encoding:NSUTF8StringEncoding error:nil];
     NSData *tokenData = [NSJSONSerialization dataWithJSONObject:@[self.token] options:0 error:nil];
@@ -378,10 +378,17 @@ static GCKCastOptions *VWDirectCastOptions;
         [discovery startDiscovery];
         GCKDevice *device = [discovery deviceWithUniqueID:@"virtualwalking-philips-192-168-0-53"];
         if (!device) {
-            [[GCKCastContext sharedInstance] presentCastDialog];
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Philips · Geräteerkennung" message:@"Der Philips ist noch nicht in der Cast-Geräteliste registriert. Die Direkt-IP-Verbindung kann deshalb nicht gestartet werden." preferredStyle:UIAlertControllerStyleAlert];
+            [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+            [weakSelf presentViewController:alert animated:YES completion:nil];
             return;
         }
         BOOL started = [[GCKCastContext sharedInstance].sessionManager startSessionWithDevice:device];
+        if (started) {
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Philips · Verbindungsaufbau" message:@"Cast-Sitzung angefordert. Ob die Verbindung zustande kommt, wird durch den Sitzungsstatus bestätigt." preferredStyle:UIAlertControllerStyleAlert];
+            [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+            [weakSelf presentViewController:alert animated:YES completion:nil];
+        }
         if (!started) {
             UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Philips · Direkt-IP" message:@"Der Cast-Sitzungsmanager konnte den Verbindungsaufbau nicht starten." preferredStyle:UIAlertControllerStyleAlert];
             [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
