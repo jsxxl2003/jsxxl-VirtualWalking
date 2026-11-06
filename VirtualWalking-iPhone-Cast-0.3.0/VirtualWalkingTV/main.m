@@ -22,6 +22,9 @@ static NSString *VWUUID(CBUUID *uuid) {
 
 
 static GCKCastOptions *VWDirectCastOptions;
+static BOOL VWPhilipsProviderStarted = NO;
+static BOOL VWPhilipsDeviceCreated = NO;
+static BOOL VWPhilipsDevicePublished = NO;
 @interface VWPhilipsProvider : GCKDeviceProvider
 @property(nonatomic, strong) GCKDevice *philips;
 @end
@@ -29,13 +32,15 @@ static GCKCastOptions *VWDirectCastOptions;
 - (instancetype)init {
     if ((self = [super initWithDeviceCategory:@"virtualwalking.philips.direct"])) {
         self.philips = [self createDeviceWithID:@"virtualwalking-philips-192-168-0-53" ipAddress:@"192.168.0.53" servicePort:8009];
+        VWPhilipsDeviceCreated = self.philips != nil;
         self.philips.friendlyName = @"Philips Ambilight · Direkt-IP";
     }
     return self;
 }
 - (void)startDiscovery {
+    VWPhilipsProviderStarted = YES;
     [self notifyDidStartDiscovery];
-    if (self.philips) [self notifyDidPublishDevice:self.philips];
+    if (self.philips) { [self notifyDidPublishDevice:self.philips]; VWPhilipsDevicePublished = YES; }
 }
 - (void)stopDiscovery {}
 - (GCKSession *)createSessionForDevice:(GCKDevice *)device sessionID:(NSString *)sessionID sessionOptions:(GCKSessionOptions *)sessionOptions {
@@ -335,7 +340,7 @@ static GCKCastOptions *VWDirectCastOptions;
 }
 - (void)emit:(NSDictionary *)event { if (self.ready) [self call:@"__vwNativeEvent" value:event]; }
 - (void)viewDidLoad {
-    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.4"; self.token = NSUUID.UUID.UUIDString;
+    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.5"; self.token = NSUUID.UUID.UUIDString;
     NSString *bridgePath = [NSBundle.mainBundle pathForResource:@"native-bridge" ofType:@"js" inDirectory:@"Web"];
     NSString *bridge = [NSString stringWithContentsOfFile:bridgePath encoding:NSUTF8StringEncoding error:nil];
     NSData *tokenData = [NSJSONSerialization dataWithJSONObject:@[self.token] options:0 error:nil];
@@ -380,7 +385,7 @@ static GCKCastOptions *VWDirectCastOptions;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         GCKDevice *device = [discovery deviceWithUniqueID:@"virtualwalking-philips-192-168-0-53"];
         if (!device) {
-            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Philips · Geräteerkennung" message:@"Der Philips ist noch nicht in der Cast-Geräteliste registriert. Die Direkt-IP-Verbindung kann deshalb nicht gestartet werden." preferredStyle:UIAlertControllerStyleAlert];
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Philips · Geräteerkennung" message:[NSString stringWithFormat:@"SDK-Geräteanbieter gestartet: %@\nIP-Gerät erstellt: %@\nVeröffentlichung aufgerufen: %@\nGerät in Cast-Liste: Nein", VWPhilipsProviderStarted?@"Ja":@"Nein", VWPhilipsDeviceCreated?@"Ja":@"Nein", VWPhilipsDevicePublished?@"Ja":@"Nein"] preferredStyle:UIAlertControllerStyleAlert];
             [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
             [weakSelf presentViewController:alert animated:YES completion:nil];
             return;
