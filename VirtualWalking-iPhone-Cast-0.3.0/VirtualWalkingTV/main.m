@@ -373,6 +373,42 @@ static BOOL VWPhilipsDevicePublished = NO;
     if (self.presentedViewController) return;
     UIAlertController *choice = [UIAlertController alertControllerWithTitle:@"TV verbinden" message:nil preferredStyle:UIAlertControllerStyleActionSheet];
     __weak typeof(self) weakSelf = self;
+    [choice addAction:[UIAlertAction actionWithTitle:@"waipu.tv Box suchen (192.168.0.32)" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        GCKDiscoveryManager *discovery = [GCKCastContext sharedInstance].discoveryManager;
+        [discovery startDiscovery];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (!weakSelf || weakSelf.presentedViewController) return;
+            NSMutableArray<GCKDevice *> *matches = [NSMutableArray new];
+            NSMutableArray<NSString *> *visible = [NSMutableArray new];
+            for (NSUInteger i = 0; i < discovery.deviceCount; i++) {
+                GCKDevice *device = [discovery deviceAtIndex:i];
+                NSString *name = device.friendlyName ?: @"Unbenannt";
+                NSString *address = device.networkAddress ?: @"";
+                [visible addObject:[NSString stringWithFormat:@"%@ (%@)", name, address]];
+                if ([address isEqualToString:@"192.168.0.32"] || [name.lowercaseString containsString:@"waipu"]) {
+                    [matches addObject:device];
+                }
+            }
+            NSString *detail = visible.count ? [visible componentsJoinedByString:@"\n"] : @"Keine Cast-Geräte im Heimnetz gefunden.";
+            UIAlertController *result = [UIAlertController alertControllerWithTitle:@"waipu.tv · Cast-Erkennung"
+                message:[NSString stringWithFormat:@"Gesucht: 192.168.0.32\nErkannte Geräte: %lu\n%@", (unsigned long)discovery.deviceCount, detail]
+                preferredStyle:UIAlertControllerStyleAlert];
+            for (GCKDevice *device in matches) {
+                [result addAction:[UIAlertAction actionWithTitle:[NSString stringWithFormat:@"Verbinden: %@", device.friendlyName ?: @"waipu.tv"]
+                    style:UIAlertActionStyleDefault handler:^(UIAlertAction *selected) {
+                        BOOL requested = [[GCKCastContext sharedInstance].sessionManager startSessionWithDevice:device];
+                        if (!requested) {
+                            UIAlertController *failure = [UIAlertController alertControllerWithTitle:@"Cast-Verbindung"
+                                message:@"Die Cast-Sitzung konnte nicht gestartet werden." preferredStyle:UIAlertControllerStyleAlert];
+                            [failure addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+                            [weakSelf presentViewController:failure animated:YES completion:nil];
+                        }
+                    }]];
+            }
+            [result addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+            [weakSelf presentViewController:result animated:YES completion:nil];
+        });
+    }]];
     [choice addAction:[UIAlertAction actionWithTitle:@"AirServer prüfen" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         VWReceiverProbeController *probe = [VWReceiverProbeController new];
         UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:probe];
