@@ -8,6 +8,11 @@
 #import <AVFoundation/AVFoundation.h>
 #import <math.h>
 #import <objc/message.h>
+#import <sys/socket.h>
+#import <arpa/inet.h>
+#import <fcntl.h>
+#import <errno.h>
+#import <sys/select.h>
 #import "VWReceiverProbe.h"
 
 typedef void (^VWReply)(id value, NSString *error, NSString *name);
@@ -20,6 +25,31 @@ static NSString *VWUUID(CBUUID *uuid) {
     return value.length == 4 ? [NSString stringWithFormat:@"0000%@-0000-1000-8000-00805f9b34fb", value] : value;
 }
 
+
+// A bounded TCP probe tests whether the box exposes a Cast v2 listener; it does not assume Cast support.
+static BOOL VWPortOpen(NSString *host, uint16_t port) {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) return NO;
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) { close(fd); return NO; }
+    struct sockaddr_in address = {0};
+    address.sin_family = AF_INET;
+    address.sin_port = htons(port);
+    if (inet_pton(AF_INET, host.UTF8String, &address.sin_addr) != 1) { close(fd); return NO; }
+    int result = connect(fd, (struct sockaddr *)&address, sizeof(address));
+    if (result == 0) { close(fd); return YES; }
+    if (errno != EINPROGRESS) { close(fd); return NO; }
+    fd_set writable;
+    FD_ZERO(&writable);
+    FD_SET(fd, &writable);
+    struct timeval timeout = {.tv_sec = 2, .tv_usec = 0};
+    result = select(fd + 1, NULL, &writable, NULL, &timeout);
+    int error = 0;
+    socklen_t length = sizeof(error);
+    BOOL open = result > 0 && getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &length) == 0 && error == 0;
+    close(fd);
+    return open;
+}
 
 static GCKCastOptions *VWDirectCastOptions;
 static BOOL VWPhilipsProviderStarted = NO;
@@ -389,24 +419,36 @@ static BOOL VWPhilipsDevicePublished = NO;
                     [matches addObject:device];
                 }
             }
-            NSString *detail = visible.count ? [visible componentsJoinedByString:@"\n"] : @"Keine Cast-Geräte im Heimnetz gefunden.";
-            UIAlertController *result = [UIAlertController alertControllerWithTitle:@"waipu.tv · Cast-Erkennung"
-                message:[NSString stringWithFormat:@"Gesucht: 192.168.0.32\nErkannte Geräte: %lu\n%@", (unsigned long)discovery.deviceCount, detail]
-                preferredStyle:UIAlertControllerStyleAlert];
-            for (GCKDevice *device in matches) {
-                [result addAction:[UIAlertAction actionWithTitle:[NSString stringWithFormat:@"Verbinden: %@", device.friendlyName ?: @"waipu.tv"]
-                    style:UIAlertActionStyleDefault handler:^(UIAlertAction *selected) {
-                        BOOL requested = [[GCKCastContext sharedInstance].sessionManager startSessionWithDevice:device];
-                        if (!requested) {
-                            UIAlertController *failure = [UIAlertController alertControllerWithTitle:@"Cast-Verbindung"
-                                message:@"Die Cast-Sitzung konnte nicht gestartet werden." preferredStyle:UIAlertControllerStyleAlert];
-                            [failure addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-                            [weakSelf presentViewController:failure animated:YES completion:nil];
-                        }
-                    }]];
-            }
-            [result addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
-            [weakSelf presentViewController:result animated:YES completion:nil];
+            // Probe on a background queue so the interface remains responsive.
+            dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+                BOOL castPort = VWPortOpen(@"192.168.0.32", 8009);
+                BOOL discoveryPort = VWPortOpen(@"192.168.0.32", 8008);
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (!weakSelf || weakSelf.presentedViewController) return;
+                    NSString *detail = [NSString stringWithFormat:@"waipu.tv 192.168.0.32\\nCast-Port 8009: %@\\nCast-HTTP 8008: %@\\n\\nSDK-Geräte: %lu\\n%@",
+                        castPort ? @"Erreichbar" : @"Nicht erreichbar",
+                        discoveryPort ? @"Erreichbar" : @"Nicht erreichbar",
+                        (unsigned long)discovery.deviceCount,
+                        visible.count ? [visible componentsJoinedByString:@"\\n"] : @"Keine Geräte über Cast-SDK gefunden."];
+                    UIAlertController *result = [UIAlertController alertControllerWithTitle:@"waipu.tv · Verbindungstest"
+                        message:detail preferredStyle:UIAlertControllerStyleAlert];
+                    for (GCKDevice *device in matches) {
+                        [result addAction:[UIAlertAction actionWithTitle:[NSString stringWithFormat:@"Verbinden: %@", device.friendlyName ?: @"waipu.tv"]
+                            style:UIAlertActionStyleDefault handler:^(UIAlertAction *selected) {
+                                BOOL requested = [[GCKCastContext sharedInstance].sessionManager startSessionWithDevice:device];
+                                if (!requested) {
+                                    UIAlertController *failure = [UIAlertController alertControllerWithTitle:@"Cast-Verbindung"
+                                        message:@"Die Cast-Sitzung konnte nicht gestartet werden." preferredStyle:UIAlertControllerStyleAlert];
+                                    [failure addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+                                    [weakSelf presentViewController:failure animated:YES completion:nil];
+                                }
+                            }]];
+                    }
+                    [result addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+                    [weakSelf presentViewController:result animated:YES completion:nil];
+                });
+            });
+            /* old dialog removed */
         });
     }]];
     [choice addAction:[UIAlertAction actionWithTitle:@"AirServer prüfen" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
