@@ -425,11 +425,11 @@ static BOOL VWPhilipsDevicePublished = NO;
                 BOOL discoveryPort = VWPortOpen(@"192.168.0.32", 8008);
                 dispatch_async(dispatch_get_main_queue(), ^{
                     if (!weakSelf || weakSelf.presentedViewController) return;
-                    NSString *detail = [NSString stringWithFormat:@"waipu.tv 192.168.0.32\\nCast-Port 8009: %@\\nCast-HTTP 8008: %@\\n\\nSDK-Geräte: %lu\\n%@",
+                    NSString *detail = [NSString stringWithFormat:@"waipu.tv 192.168.0.32\nCast-Port 8009: %@\nCast-HTTP 8008: %@\n\nSDK-Geräte: %lu\n%@",
                         castPort ? @"Erreichbar" : @"Nicht erreichbar",
                         discoveryPort ? @"Erreichbar" : @"Nicht erreichbar",
                         (unsigned long)discovery.deviceCount,
-                        visible.count ? [visible componentsJoinedByString:@"\\n"] : @"Keine Geräte über Cast-SDK gefunden."];
+                        visible.count ? [visible componentsJoinedByString:@"\n"] : @"Keine Geräte über Cast-SDK gefunden."];
                     UIAlertController *result = [UIAlertController alertControllerWithTitle:@"waipu.tv · Verbindungstest"
                         message:detail preferredStyle:UIAlertControllerStyleAlert];
                     for (GCKDevice *device in matches) {
