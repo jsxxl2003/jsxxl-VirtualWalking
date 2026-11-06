@@ -523,6 +523,9 @@
   if(bt.startBlockedReason){announce(bt.startBlockedReason,true);return;}
   if(!freshSpeed()||!Number.isFinite(speed)){announce('Bitte auf aktuelle Geschwindigkeitsdaten des Laufbands warten.',true);return;}
   if(speed<.1&&!bt.canControl){announce('App-Start noch nicht möglich: '+(bt.controlIssue||'Der Steuerkanal konnte nicht geöffnet werden.')+' Bitte Wellfit trennen und Bluetooth hier neu verbinden. Alternativ am Gerät starten, dann „Training starten“ drücken.',true);return;}
+  // Unlock iOS YouTube playback synchronously in the user's tap gesture, before awaiting BLE operations.
+  // The joint-start state machine will pause the preview before requesting belt motion.
+  if(videoKind==='youtube' && youtubeReady && !tv?.active) { try { youtubePlayer.playVideo(); } catch {} }
   starting=true;const controller=new AbortController();startupAbort=controller;renderWorkout();
   announce('Video wird vorbereitet. Danach wird der Laufband-Start angefordert.');
   startupTask=(async()=>{
