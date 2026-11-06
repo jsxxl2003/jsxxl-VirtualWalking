@@ -399,10 +399,50 @@ static BOOL VWPhilipsDevicePublished = NO;
     NSString *html = [NSString stringWithContentsOfFile:[NSBundle.mainBundle pathForResource:@"native" ofType:@"html" inDirectory:@"Web"] encoding:NSUTF8StringEncoding error:nil];
     [self.web loadHTMLString:html baseURL:[NSURL URLWithString:VWOrigin]];
 }
+- (void)connectWaipuDirect {
+    UIAlertController *dialog = [UIAlertController alertControllerWithTitle:@"waipu.tv · Direktverbindung"
+        message:@"Schlüssel vom Fernseher eingeben. Kein Google Cast."
+        preferredStyle:UIAlertControllerStyleAlert];
+    [dialog addTextFieldWithConfigurationHandler:^(UITextField *field) {
+        field.placeholder = @"Schlüssel vom Fernseher";
+        field.autocapitalizationType = UITextAutocapitalizationTypeNone;
+        field.autocorrectionType = UITextAutocorrectionTypeNo;
+        field.text = [NSUserDefaults.standardUserDefaults stringForKey:@"VWTVReceiverKey"] ?: @"";
+    }];
+    __weak typeof(self) weakSelf = self;
+    [dialog addAction:[UIAlertAction actionWithTitle:@"Abbrechen" style:UIAlertActionStyleCancel handler:nil]];
+    [dialog addAction:[UIAlertAction actionWithTitle:@"Verbinden" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        NSString *key = [dialog.textFields.firstObject.text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+        if (key.length != 24) {
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Schlüssel ungültig" message:@"Bitte den 24-stelligen Schlüssel vom Fernseher eingeben." preferredStyle:UIAlertControllerStyleAlert];
+            [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+            [weakSelf presentViewController:alert animated:YES completion:nil]; return;
+        }
+        NSString *encoded = [key stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
+        NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"http://192.168.0.32:8765/status?key=%@", encoded]];
+        NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+        request.timeoutInterval = 6;
+        [[[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+            NSHTTPURLResponse *http = (NSHTTPURLResponse *)response;
+            BOOL connected = !error && http.statusCode == 200;
+            if (connected) [NSUserDefaults.standardUserDefaults setObject:key forKey:@"VWTVReceiverKey"];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (!weakSelf) return;
+                NSString *message = connected ? @"Die iPhone-App ist direkt mit dem Android-TV-Empfänger verbunden." :
+                    [NSString stringWithFormat:@"Keine Verbindung: %@", error.localizedDescription ?: [NSString stringWithFormat:@"HTTP %ld", (long)http.statusCode]];
+                UIAlertController *result = [UIAlertController alertControllerWithTitle:connected ? @"waipu.tv verbunden" : @"Verbindung fehlgeschlagen" message:message preferredStyle:UIAlertControllerStyleAlert];
+                [result addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+                [weakSelf presentViewController:result animated:YES completion:nil];
+            });
+        }] resume];
+    }]];
+    [self presentViewController:dialog animated:YES completion:nil];
+}
 - (void)connectTV {
     if (self.presentedViewController) return;
     UIAlertController *choice = [UIAlertController alertControllerWithTitle:@"TV verbinden" message:nil preferredStyle:UIAlertControllerStyleActionSheet];
     __weak typeof(self) weakSelf = self;
+    [choice addAction:[UIAlertAction actionWithTitle:@"waipu.tv · Direkt verbinden (Android)" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { [weakSelf connectWaipuDirect]; }]];
     [choice addAction:[UIAlertAction actionWithTitle:@"waipu.tv Box suchen (192.168.0.32)" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         GCKDiscoveryManager *discovery = [GCKCastContext sharedInstance].discoveryManager;
         [discovery startDiscovery];
