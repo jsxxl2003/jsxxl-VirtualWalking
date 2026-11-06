@@ -335,7 +335,7 @@ static GCKCastOptions *VWDirectCastOptions;
 }
 - (void)emit:(NSDictionary *)event { if (self.ready) [self call:@"__vwNativeEvent" value:event]; }
 - (void)viewDidLoad {
-    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.3"; self.token = NSUUID.UUID.UUIDString;
+    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.4"; self.token = NSUUID.UUID.UUIDString;
     NSString *bridgePath = [NSBundle.mainBundle pathForResource:@"native-bridge" ofType:@"js" inDirectory:@"Web"];
     NSString *bridge = [NSString stringWithContentsOfFile:bridgePath encoding:NSUTF8StringEncoding error:nil];
     NSData *tokenData = [NSJSONSerialization dataWithJSONObject:@[self.token] options:0 error:nil];
@@ -376,6 +376,8 @@ static GCKCastOptions *VWDirectCastOptions;
     [choice addAction:[UIAlertAction actionWithTitle:@"Philips direkt verbinden (192.168.0.53)" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         GCKDiscoveryManager *discovery = [GCKCastContext sharedInstance].discoveryManager;
         [discovery startDiscovery];
+        // Discovery is asynchronous; do not query the device list in the same event loop turn.
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         GCKDevice *device = [discovery deviceWithUniqueID:@"virtualwalking-philips-192-168-0-53"];
         if (!device) {
             UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Philips · Geräteerkennung" message:@"Der Philips ist noch nicht in der Cast-Geräteliste registriert. Die Direkt-IP-Verbindung kann deshalb nicht gestartet werden." preferredStyle:UIAlertControllerStyleAlert];
@@ -394,6 +396,7 @@ static GCKCastOptions *VWDirectCastOptions;
             [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
             [weakSelf presentViewController:alert animated:YES completion:nil];
         }
+        });
     }]];
     [choice addAction:[UIAlertAction actionWithTitle:@"Cast-Geräteauswahl" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         [[GCKCastContext sharedInstance].discoveryManager startDiscovery];
