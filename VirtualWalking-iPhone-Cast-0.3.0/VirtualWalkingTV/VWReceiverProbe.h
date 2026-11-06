@@ -31,6 +31,8 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
 @property(nonatomic, copy) NSString *videoID;
 @property(nonatomic, copy) NSString *sessionID;
 @property(nonatomic, assign) BOOL loadSent;
+@property(nonatomic, assign) BOOL mdxAdvertised;
+@property(nonatomic, strong) NSMutableArray *mediaEvents;
 - (void)startHost:(NSString *)host port:(NSInteger)port completion:(void (^)(NSDictionary *))completion;
 - (void)startHost:(NSString *)host port:(NSInteger)port launch:(BOOL)launch completion:(void (^)(NSDictionary *))completion;
 - (void)startHost:(NSString *)host videoID:(NSString *)videoID completion:(void (^)(NSDictionary *))completion;
@@ -69,6 +71,16 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
     id object = [NSJSONSerialization JSONObjectWithData:json options:0 error:nil];
     if (![object isKindOfClass:NSDictionary.class]) return;
     NSDictionary *body = object; NSString *type = VWProbeText(body[@"type"]);
+    if (self.videoID.length && ([nameSpace isEqualToString:@"urn:x-cast:com.google.youtube.mdx"] || [nameSpace isEqualToString:@"urn:x-cast:com.google.cast.media"])) {
+        if (!self.mediaEvents) self.mediaEvents = [NSMutableArray new];
+        if (self.mediaEvents.count < 24) {
+            NSMutableDictionary *event = [@{@"namespace":nameSpace,@"type":type.length ? type : @"(ohne type)"} mutableCopy];
+            for (NSString *key in @[@"requestId",@"reason",@"detailedErrorCode",@"errorCode",@"playerState"]) {
+                id value = body[key]; if ([value isKindOfClass:NSString.class] || [value isKindOfClass:NSNumber.class]) event[key] = value;
+            }
+            [self.mediaEvents addObject:event]; self.result[@"mediaEvents"] = [self.mediaEvents copy];
+        }
+    }
     if ([nameSpace isEqualToString:@"urn:x-cast:com.google.cast.tp.heartbeat"] && [type isEqualToString:@"PING"]) {
         [self send:@"PONG" destination:VWProbeSliceText(envelope.source) nameSpace:nameSpace]; return;
     }
@@ -94,10 +106,15 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
                 if (!self.videoID.length) { [self finish]; return; }
                 NSDictionary *app = nil;
                 for (NSDictionary *item in apps) if ([item[@"appId"] isEqualToString:@"233637DE"]) { app = item; break; }
+                NSArray *appNamespaces = [app[@"namespaces"] isKindOfClass:NSArray.class] ? app[@"namespaces"] : @[];
+                for (NSDictionary *item in appNamespaces) if ([item[@"name"] isEqualToString:@"urn:x-cast:com.google.youtube.mdx"]) self.mdxAdvertised = YES;
+                self.result[@"youtubeMdxAdvertised"] = @(self.mdxAdvertised);
                 NSString *transport = VWProbeText(app[@"transportId"]);
                 if (transport.length && !self.loadSent) {
                     self.loadSent = YES;
                     [self send:@"CONNECT" destination:transport nameSpace:@"urn:x-cast:com.google.cast.tp.connection"];
+                    // Query the existing media session before testing playback. Do not guess MDX commands.
+                    [self send:@"GET_STATUS" destination:transport nameSpace:@"urn:x-cast:com.google.cast.media"];
                     [self send:@"LOAD" destination:transport nameSpace:@"urn:x-cast:com.google.cast.media"];
                     self.result[@"videoLoadSent"] = @YES;
                 }
@@ -128,9 +145,15 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
             // Deliberately omit contentId, contentURL, metadata and private filenames.
             [media addObject:safe];
         }
-        self.result[@"media"] = media; [self finish];
+        self.result[@"media"] = media;
+        if (self.videoID.length) {
+            BOOL playing = NO;
+            for (NSDictionary *item in media) if ([item[@"playerState"] isEqualToString:@"PLAYING"] || [item[@"playerState"] isEqualToString:@"BUFFERING"]) playing = YES;
+            self.result[@"playbackObserved"] = @(playing);
+            if (playing) [self finish];
+        } else [self finish];
     } else if ([nameSpace isEqualToString:@"urn:x-cast:com.google.cast.media"] && [type isEqualToString:@"LOAD_FAILED"]) {
-        self.result[@"videoLoadFailed"] = @YES; [self finish];
+        self.result[@"videoLoadFailed"] = @YES; self.result[@"loadFailureReason"] = VWProbeText(body[@"reason"]); [self finish];
     } else if ([nameSpace isEqualToString:@"urn:x-cast:com.google.cast.receiver"] && [type isEqualToString:@"LAUNCH_ERROR"]) {
         self.result[@"launchError"] = VWProbeText(body[@"reason"]); [self finish];
     }
@@ -165,7 +188,7 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
 - (void)startHost:(NSString *)host port:(NSInteger)port launch:(BOOL)launch completion:(void (^)(NSDictionary *))completion {
     self.launchRequested = launch;
     self.completion = completion; self.buffer = [NSMutableData new];
-    self.result = [@{@"protocol":@"Google Cast",@"host":host,@"port":@(port),@"protocolConfirmed":@NO,@"launchTest":@(launch)} mutableCopy];
+    self.result = [@{@"protocol":@"Google Cast",@"host":host,@"port":@(port),@"protocolConfirmed":@NO,@"launchTest":@(launch),@"videoPlaybackConfirmed":@NO} mutableCopy];
     nw_parameters_t parameters = nw_parameters_create_secure_tcp(^(nw_protocol_options_t options) {
         sec_protocol_options_t tls = nw_tls_copy_sec_protocol_options(options);
         // Only this local, read-only Cast connection accepts the receiver's self-signed certificate.
@@ -185,7 +208,9 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
     nw_connection_start(self.connection);
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (launch ? 8 : 5) * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         typeof(self) self = weakSelf; if (!self || self.finished) return;
-        self.result[@"note"] = @"Zeitlimit: Eine ausbleibende Antwort beweist keine fehlende Unterstützung."; [self finish];
+        if (self.videoID.length) self.result[@"note"] = @"MDX ist angekündigt, aber nicht automatisch steuerbar. Ein LOAD-Befehl ohne PLAYING bestätigt keinen Videostart.";
+        else self.result[@"note"] = @"Zeitlimit: Eine ausbleibende Antwort beweist keine fehlende Unterstützung.";
+        [self finish];
     });
 }
 @end
