@@ -316,7 +316,12 @@
    if(!opts.sync){syncLabel('TV-Tempoanpassung aus','Videotempo wird nicht automatisch verändert.',tv.rate);return;}
    if(!freshSpeed()||!Number.isFinite(speed)){if(wantedVideo||tv.playing){beltPaused=true;pauseVideo(true);}syncLabel('Warte auf Laufbanddaten','TV-Wiedergabe pausiert.',tv.rate);return;}
    if(speed<.1&&opts.pauseAtZero){if(wantedVideo||tv.playing){beltPaused=true;pauseVideo(true);}syncLabel('Laufband steht','TV-Video pausiert.',tv.rate);return;}
-   if(beltPaused&&speed>=.2&&wantedVideo){beltPaused=false;playVideo();}
+   if(beltPaused&&speed>=.2&&wantedVideo){
+   // Keep the automatic-pause latch until playback is confirmed. A rejected or
+   // delayed YouTube play request must not permanently disable auto-resume.
+   playVideo();
+   if(videoPlaying())beltPaused=false;
+  }
    const requested=C.targetRate(speed,opts.reference);
    if(tv.rateError){syncLabel('TV-Tempo nicht bestätigt',tv.rateError,tv.rate);return;}
    if(tv.playing)tv.setRate(requested).catch(error=>syncLabel('TV-Tempo nicht bestätigt',C.errorText(error),tv.rate));
@@ -330,11 +335,16 @@
   if(!opts.sync){syncLabel('Tempoanpassung aus','Videotempo wird nicht automatisch verändert.',actualRate);return;}
   if(!bt.connected){syncLabel('Laufband verbinden','Ohne Live-Daten bleibt das Videotempo manuell.',actualRate);return;}
   if(!fresh()||!Number.isFinite(speed)){
-   if(wantedVideo||videoPlaying()){beltPaused=true;pauseVideo(true);}
+   if(!beltPaused&&(wantedVideo||videoPlaying())){beltPaused=true;pauseVideo(true);}
    syncLabel('Warte auf Laufbanddaten','Noch keine aktuellen Geschwindigkeitsdaten.',actualRate);return;
   }
-  if(speed<.1&&opts.pauseAtZero){if(wantedVideo||videoPlaying()){beltPaused=true;pauseVideo(true);}syncLabel('Laufband steht','Das Video pausiert bis das Laufband wieder läuft.',actualRate,true);return;}
-  if(beltPaused&&speed>=.2&&wantedVideo){beltPaused=false;playVideo();}
+  if(speed<.1&&opts.pauseAtZero){if(!beltPaused&&(wantedVideo||videoPlaying())){beltPaused=true;pauseVideo(true);}syncLabel('Laufband steht','Das Video pausiert bis das Laufband wieder läuft.',actualRate,true);return;}
+  if(beltPaused&&speed>=.2&&wantedVideo){
+   // Keep the automatic-pause latch until playback is confirmed. A rejected or
+   // delayed YouTube play request must not permanently disable auto-resume.
+   playVideo();
+   if(videoPlaying())beltPaused=false;
+  }
   const requested=C.targetRate(speed,opts.reference);
   if(videoKind==='youtube'){
    if(!youtubeReady){syncLabel('YouTube wird vorbereitet','Warte auf die verfügbaren Tempostufen.');return;}
