@@ -91,6 +91,18 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
                 [value isKindOfClass:NSNumber.class] ? @"number" : @"other";
         }
         self.result[@"mdxSessionFieldTypes"] = shape;
+        NSDictionary *sessionData = [body[@"data"] isKindOfClass:NSDictionary.class] ? body[@"data"] : nil;
+        if (sessionData) {
+            NSMutableDictionary *dataShape = [NSMutableDictionary new];
+            for (NSString *key in sessionData) {
+                id value = sessionData[key];
+                dataShape[key] = [value isKindOfClass:NSDictionary.class] ? @"object" :
+                    [value isKindOfClass:NSArray.class] ? @"array" :
+                    [value isKindOfClass:NSString.class] ? @"string" :
+                    [value isKindOfClass:NSNumber.class] ? @"number" : @"other";
+            }
+            self.result[@"mdxDataFieldTypes"] = dataShape;
+        }
         self.result[@"mdxSessionStatusReceived"] = @YES;
     }
     if ([nameSpace isEqualToString:@"urn:x-cast:com.google.cast.tp.heartbeat"] && [type isEqualToString:@"PING"]) {
@@ -466,7 +478,7 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
     }];
 }
 - (void)share {
-    NSDictionary *report = @{@"version":@"0.3.7",@"capturedAt":[[NSISO8601DateFormatter new] stringFromDate:NSDate.date],@"mode":@"read-only",@"target":self.address.text ?: @"",@"records":self.records ?: @[],@"scanComplete":@(self.probe.stopped),@"liveStreamingTested":@NO};
+    NSDictionary *report = @{@"version":@"0.3.8",@"capturedAt":[[NSISO8601DateFormatter new] stringFromDate:NSDate.date],@"mode":@"read-only",@"target":self.address.text ?: @"",@"records":self.records ?: @[],@"scanComplete":@(self.probe.stopped),@"liveStreamingTested":@NO};
     NSData *data = [NSJSONSerialization dataWithJSONObject:report options:NSJSONWritingPrettyPrinted error:nil]; if (!data) return;
     NSURL *url = [[NSURL fileURLWithPath:NSTemporaryDirectory()] URLByAppendingPathComponent:@"VirtualWalking-AirServer-iPhone.json"]; if (![data writeToURL:url atomically:YES]) return;
     UIActivityViewController *share = [[UIActivityViewController alloc] initWithActivityItems:@[url] applicationActivities:nil]; share.popoverPresentationController.barButtonItem = self.navigationItem.rightBarButtonItem; [self presentViewController:share animated:YES completion:nil];
