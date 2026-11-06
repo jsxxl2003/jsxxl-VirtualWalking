@@ -1,6 +1,6 @@
 {
-  "version": "0.3.0",
-  "status": "source-only-uncompiled",
+  "version": "0.3.3",
+  "status": "awaiting-codemagic-native-build",
   "upstream": "VirtualWalking Bluefy 0.1.4",
   "upstream_files": {
     "core.js": "c35b3c28e4a561cd365e7dd3d987a4a1e583eee9b8463128e9c841d604d80892",
@@ -8,5 +8,11 @@
     "joint-start.js": "79ca1f5a7ed65db6048437d2c27b57d263a3b6edf917be9712bc727472febb80"
   },
   "receiver_app_id": "233637DE",
-  "cast_sdk": "4.8.6"
+  "cast_sdk": "4.8.6",
+  "source_base_commit": "144ce88bdf14a47dfced7af0fe61ce65158cf222",
+  "features": [
+    "read-only iPhone receiver protocol diagnostics",
+    "persistent last selected YouTube video"
+  ],
+  "direct_video_sender_implemented": false
 }

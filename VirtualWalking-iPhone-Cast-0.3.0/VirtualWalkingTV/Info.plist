@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>de</string>
 	<key>CFBundleDisplayName</key>
-	<string>VirtualWalking 0.3.2</string>
+	<string>VirtualWalking 0.3.3</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -17,9 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.3.2</string>
+	<string>0.3.3</string>
 	<key>CFBundleVersion</key>
-	<string>3</string>
+	<string>4</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
@@ -28,9 +28,12 @@
 	<array>
 		<string>_googlecast._tcp</string>
 		<string>_233637DE._googlecast._tcp</string>
+		<string>_airplay._tcp</string>
+		<string>_raop._tcp</string>
+		<string>_dial._tcp</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>VirtualWalking sucht deinen Philips-Fernseher und steuert die YouTube-TV-Wiedergabe passend zur Laufbandgeschwindigkeit.</string>
+	<string>VirtualWalking sucht deinen Fernseher und prüft die von AirServer angebotenen Empfangsdienste für die Videoübertragung.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -56,5 +59,33 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>10.0.0.0/8</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+			<key>172.16.0.0/12</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+			<key>192.168.0.0/16</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+			<key>169.254.0.0/16</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
 </dict>
 </plist>

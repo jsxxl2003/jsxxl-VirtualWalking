@@ -7,6 +7,7 @@
 #import <AVKit/AVKit.h>
 #import <AVFoundation/AVFoundation.h>
 #import <math.h>
+#import "VWReceiverProbe.h"
 
 typedef void (^VWReply)(id value, NSString *error, NSString *name);
 typedef void (^VWEvent)(NSDictionary *event);
@@ -292,8 +293,6 @@ static NSString *VWUUID(CBUUID *uuid) {
 @property(nonatomic, strong) VWBLE *ble;
 @property(nonatomic, strong) VWCast *cast;
 @property(nonatomic, strong) NSString *token;
-@property(nonatomic, strong) id localNetworkBrowser;
-@property(nonatomic, strong) NSMutableSet<NSString *> *bonjourNames;
 @property(nonatomic, assign) BOOL ready;
 - (void)suspend;
 - (void)resume;
@@ -306,7 +305,7 @@ static NSString *VWUUID(CBUUID *uuid) {
 }
 - (void)emit:(NSDictionary *)event { if (self.ready) [self call:@"__vwNativeEvent" value:event]; }
 - (void)viewDidLoad {
-    [super viewDidLoad]; self.title = @"VirtualWalking · 0.3.2"; self.token = NSUUID.UUID.UUIDString;
+    [super viewDidLoad]; self.title = @"VirtualWalking · 0.3.3"; self.token = NSUUID.UUID.UUIDString;
     NSString *bridgePath = [NSBundle.mainBundle pathForResource:@"native-bridge" ofType:@"js" inDirectory:@"Web"];
     NSString *bridge = [NSString stringWithContentsOfFile:bridgePath encoding:NSUTF8StringEncoding error:nil];
     NSData *tokenData = [NSJSONSerialization dataWithJSONObject:@[self.token] options:0 error:nil];
@@ -320,7 +319,7 @@ static NSString *VWUUID(CBUUID *uuid) {
     [NSLayoutConstraint activateConstraints:@[[self.web.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],[self.web.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],[self.web.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],[self.web.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor]]];
     UIBarButtonItem *button = [[UIBarButtonItem alloc] initWithTitle:@"TV verbinden" style:UIBarButtonItemStylePlain target:self action:@selector(connectTV)];
     button.tintColor = UIColor.systemTealColor;
-    button.accessibilityHint = @"Öffnet die Cast-Geräteauswahl mit Diagnosehinweis.";
+    button.accessibilityHint = @"Öffnet die TV-Verbindung und die AirServer-Prüfung.";
     // Native AirPlay sender route discovery, independent of Google Cast.
     // A route must actually appear and be selected before media routing can be tested.
     AVRoutePickerView *airPlayPicker = [[AVRoutePickerView alloc] initWithFrame:CGRectMake(0, 0, 42, 36)];
@@ -336,60 +335,24 @@ static NSString *VWUUID(CBUUID *uuid) {
     [self.web loadHTMLString:html baseURL:[NSURL URLWithString:VWOrigin]];
 }
 - (void)connectTV {
-    GCKCastContext *context = [GCKCastContext sharedInstance];
-    [context.discoveryManager startDiscovery];
-    // A real Bonjour browse requests iOS Local Network access independently of Cast.
-    // Retain the browser for the duration of the app session.
-    if (!self.localNetworkBrowser) {
-        nw_browse_descriptor_t descriptor = nw_browse_descriptor_create_bonjour_service("_googlecast._tcp", NULL);
-        nw_parameters_t parameters = nw_parameters_create();
-        nw_browser_t browser = nw_browser_create(descriptor, parameters);
-        if (browser) {
-            self.localNetworkBrowser = browser;
-            self.bonjourNames = [NSMutableSet new];
-            __weak typeof(self) weakSelf = self;
-            nw_browser_set_browse_results_changed_handler(browser, ^(nw_browse_result_t result, nw_browse_result_t previous, bool complete) {
-                typeof(self) strongSelf = weakSelf;
-                if (!strongSelf) return;
-                if (previous) {
-                    nw_endpoint_t oldEndpoint = nw_browse_result_copy_endpoint(previous);
-                    const char *oldName = oldEndpoint ? nw_endpoint_get_bonjour_service_name(oldEndpoint) : NULL;
-                    if (oldName) [strongSelf.bonjourNames removeObject:[NSString stringWithUTF8String:oldName]];
-                }
-                if (result) {
-                    nw_endpoint_t endpoint = nw_browse_result_copy_endpoint(result);
-                    const char *name = endpoint ? nw_endpoint_get_bonjour_service_name(endpoint) : NULL;
-                    if (name) [strongSelf.bonjourNames addObject:[NSString stringWithUTF8String:name]];
-                }
-            });
-            nw_browser_set_queue(browser, dispatch_get_main_queue());
-            nw_browser_set_state_changed_handler(browser, ^(nw_browser_state_t state, nw_error_t error) {
-                if (state == nw_browser_state_failed) {
-                    NSLog(@"VirtualWalking Bonjour discovery failed: %@", error);
-                }
-            });
-            nw_browser_start(browser);
+    if (self.presentedViewController) return;
+    UIAlertController *choice = [UIAlertController alertControllerWithTitle:@"TV verbinden" message:nil preferredStyle:UIAlertControllerStyleActionSheet];
+    __weak typeof(self) weakSelf = self;
+    [choice addAction:[UIAlertAction actionWithTitle:@"AirServer prüfen" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        VWReceiverProbeController *probe = [VWReceiverProbeController new];
+        UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:probe];
+        [weakSelf presentViewController:navigation animated:YES completion:nil];
+    }]];
+    [choice addAction:[UIAlertAction actionWithTitle:@"Cast-Geräteauswahl" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        [[GCKCastContext sharedInstance].discoveryManager startDiscovery];
+        if (![[GCKCastContext sharedInstance] presentCastDialog]) {
+            UIAlertController *hint = [UIAlertController alertControllerWithTitle:@"Kein Cast-Dialog" message:@"Die Geräteauswahl konnte nicht geöffnet werden. Über „AirServer prüfen“ kannst du die angebotenen Empfangsdienste untersuchen." preferredStyle:UIAlertControllerStyleAlert];
+            [hint addAction:[UIAlertAction actionWithTitle:@"Schließen" style:UIAlertActionStyleCancel handler:nil]]; [weakSelf presentViewController:hint animated:YES completion:nil];
         }
-    }
-    // Diagnose actual SDK discovery instead of treating a missing dialog as an empty list.
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        GCKDiscoveryManager *discovery = [GCKCastContext sharedInstance].discoveryManager;
-        NSUInteger count = discovery.deviceCount;
-        NSMutableArray<NSString *> *names = [NSMutableArray new];
-        for (NSUInteger i = 0; i < count; i++) {
-            GCKDevice *device = [discovery deviceAtIndex:i];
-            [names addObject:device.friendlyName ?: @"Unbenannt"];
-        }
-        NSString *message = [NSString stringWithFormat:@"Cast-SDK: %lu Gerät(e)%@\\nBonjour (_googlecast._tcp): %@", (unsigned long)count, count ? [NSString stringWithFormat:@" (%@)", [names componentsJoinedByString:@", "]] : @"", self.bonjourNames.count ? [[self.bonjourNames allObjects] componentsJoinedByString:@", "] : @"keine Treffer"];
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Cast-Diagnose" message:message preferredStyle:UIAlertControllerStyleAlert];
-        [alert addAction:[UIAlertAction actionWithTitle:@"Schließen" style:UIAlertActionStyleCancel handler:nil]];
-        if (count) {
-            [alert addAction:[UIAlertAction actionWithTitle:@"Geräteauswahl öffnen" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-                [[GCKCastContext sharedInstance] presentCastDialog];
-            }]];
-        }
-        [self presentViewController:alert animated:YES completion:nil];
-    });
+    }]];
+    [choice addAction:[UIAlertAction actionWithTitle:@"Abbrechen" style:UIAlertActionStyleCancel handler:nil]];
+    choice.popoverPresentationController.barButtonItem = self.navigationItem.rightBarButtonItems.firstObject;
+    [self presentViewController:choice animated:YES completion:nil];
 }
 - (void)suspend { [self emit:@{@"type":@"app.suspend"}]; self.cast.latestStatus = nil; self.cast.statusAt = 0; UIApplication.sharedApplication.idleTimerDisabled = NO; }
 - (void)resume { [self emit:@{@"type":@"app.resume"}]; [self.cast.client requestStatus]; UIApplication.sharedApplication.idleTimerDisabled = YES; }
@@ -405,6 +368,16 @@ static NSString *VWUUID(CBUUID *uuid) {
     };
     if ([method hasPrefix:@"ble."]) [self.ble handle:method params:params reply:reply];
     else if ([method hasPrefix:@"cast."]) [self.cast handle:method params:params reply:reply];
+    else if ([method isEqualToString:@"video.last.get"]) {
+        NSDictionary *saved = [NSUserDefaults.standardUserDefaults dictionaryForKey:@"VWLastYouTubeVideo"];
+        reply(saved ?: @{},nil,nil);
+    } else if ([method isEqualToString:@"video.last.set"]) {
+        NSString *videoID = VWString(params[@"id"]); NSString *title = VWString(params[@"title"]);
+        NSRegularExpression *pattern = [NSRegularExpression regularExpressionWithPattern:@"^[A-Za-z0-9_-]{11}$" options:0 error:nil];
+        if (videoID.length != 11 || [pattern numberOfMatchesInString:videoID options:0 range:NSMakeRange(0,videoID.length)] != 1 || title.length > 512) { reply(nil,@"Ungültiges YouTube-Video.",@"TypeError"); return; }
+        [NSUserDefaults.standardUserDefaults setObject:@{@"id":videoID,@"title":title} forKey:@"VWLastYouTubeVideo"];
+        reply(@{},nil,nil);
+    }
     else if ([method isEqualToString:@"clipboard.read"]) reply(UIPasteboard.generalPasteboard.string ?: @"",nil,nil);
     else reply(nil,@"Unbekannter App-Aufruf.",@"NotSupportedError");
 }

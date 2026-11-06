@@ -228,6 +228,20 @@
   if(['youtube.com','m.youtube.com','youtube-nocookie.com'].includes(host)){if(url.pathname==='/watch')return url.searchParams.get('v');return url.pathname.match(/^\/(?:embed|shorts|live)\/([^/]+)/)?.[1]||null;}
   return null;
  }
+ function validLastYoutube(value){return value&&typeof value.id==='string'&&/^[a-zA-Z0-9_-]{11}$/.test(value.id)&&typeof value.title==='string'&&value.title.length<=512;}
+ function rememberYoutube(id,title=''){
+  const saved={id,title:String(title).slice(0,512)};if(!validLastYoutube(saved))return;
+  write('lastYoutube',saved);
+  window.VirtualWalkingNative?.rpc('video.last.set',saved).catch(()=>{});
+ }
+ function offerLastYoutube(saved){
+  if(!validLastYoutube(saved)||sourceGeneration!==0||$('videoUrl').value.trim())return;
+  $('videoUrl').value='https://www.youtube.com/watch?v='+saved.id;
+  $('linkPanel').hidden=false;$('showLink').setAttribute('aria-expanded','true');
+  linkFeedback('Zuletzt gewählt: '+(saved.title||'YouTube-Laufvideo')+' · Mit „Öffnen“ erneut laden.');
+ }
+ let videoLinkEdited=false;
+ $('videoUrl').addEventListener('input',()=>{videoLinkEdited=true;});
  function youtubeApi(){
   if(window.YT?.Player)return Promise.resolve();if(youtubePromise)return youtubePromise;
   youtubePromise=new Promise((resolve,reject)=>{
@@ -238,6 +252,7 @@
   });return youtubePromise;
  }
  async function loadYoutube(id){
+  rememberYoutube(id);
   const resume=!!workout?.running;resetVideo();videoKind='youtube';tv?.setSource('youtube',id);const generation=sourceGeneration;
   markVideo('YouTube-Laufvideo','YouTube');text('videoStatus','YouTube wird geladen …');$('youtube').hidden=false;wantedVideo=resume;
   try{
@@ -245,7 +260,7 @@
    const frame=document.createElement('iframe');frame.title='YouTube-Laufvideo';frame.referrerPolicy='strict-origin-when-cross-origin';frame.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';frame.allowFullscreen=true;
    frame.src='https://www.youtube-nocookie.com/embed/'+id+'?enablejsapi=1&playsinline=1&rel=0&origin='+encodeURIComponent(window.VirtualWalkingNative?'https://virtualwalking-iphone-bluefy.saltychick64.chatgpt.site':location.origin);$('youtube').append(frame);
    youtubePlayer=new YT.Player(frame,{events:{
-    onReady:event=>{if(generation!==sourceGeneration)return;youtubeReady=true;const title=event.target.getVideoData?.().title;if(title)markVideo(title,'YouTube');text('videoStatus','YouTube bereit. Zum Starten ggf. einmal ▶ im Player drücken.');if(wantedVideo)playVideo();syncVideo();},
+    onReady:event=>{if(generation!==sourceGeneration)return;youtubeReady=true;const title=event.target.getVideoData?.().title;if(title){markVideo(title,'YouTube');rememberYoutube(id,title);}text('videoStatus','YouTube bereit. Zum Starten ggf. einmal ▶ im Player drücken.');if(wantedVideo)playVideo();syncVideo();},
     onPlaybackRateChange:event=>{if(generation!==sourceGeneration)return;actualRate=Number(event.data);syncVideo();},
     onStateChange:event=>{if(generation!==sourceGeneration)return;if(event.data===1){wantedVideo=true;beltPaused=false;text('videoStatus','YouTube läuft.');playbackProbe?.success();}else if(event.data===2){text('videoStatus','YouTube pausiert.');playbackProbe?.paused();}else if(event.data===3)text('videoStatus','YouTube puffert …');else if(event.data===0){wantedVideo=false;text('videoStatus','YouTube-Video beendet.');}},
     onAutoplayBlocked:()=>{text('videoStatus','Bitte einmal ▶ im YouTube-Player drücken, um die Wiedergabe freizugeben.');playbackProbe?.fail(Error('YouTube blockiert den Start. Bitte einmal ▶ im Player drücken, dann erneut „Training starten“.'));},
@@ -387,5 +402,11 @@
   renderWorkout();if(!document.hidden)syncVideo();
  },500);
  renderWorkout();renderHistory();syncVideo();renderTV();
+ offerLastYoutube(read('lastYoutube',null));
+ if(window.VirtualWalkingNative)window.VirtualWalkingNative.rpc('video.last.get').then(saved=>{
+  if(videoLinkEdited||sourceGeneration!==0||!validLastYoutube(saved))return;
+  const local=read('lastYoutube',null);
+  if(!validLastYoutube(local))offerLastYoutube(saved);
+ }).catch(()=>{});
  if(tv)window.VirtualWalkingNative.rpc('cast.status').catch(()=>{});
 })();

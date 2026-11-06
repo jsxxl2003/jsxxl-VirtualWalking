@@ -7,6 +7,11 @@ workflows:
     environment:
       xcode: latest
     scripts:
+      - name: Check Cast protocol parser
+        script: |
+          cd VirtualWalking-iPhone-Cast-0.3.0
+          bash Scripts/test_probe.sh
+
       - name: Build web resources
         script: |
           cd VirtualWalking-iPhone-Cast-0.3.0
