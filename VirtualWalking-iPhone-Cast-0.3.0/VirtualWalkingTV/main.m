@@ -240,7 +240,13 @@ static NSString *VWUUID(CBUUID *uuid) {
 }
 - (void)handle:(NSString *)method params:(NSDictionary *)params reply:(VWReply)reply {
     if ([method isEqualToString:@"cast.status"]) { [self publish]; [self.client requestStatus]; reply(@{},nil,nil); return; }
-    if ([method isEqualToString:@"cast.show"]) { [[GCKCastContext sharedInstance] presentCastDialog]; reply(@{},nil,nil); return; }
+    if ([method isEqualToString:@"cast.show"]) {
+        GCKDiscoveryManager *discovery = [GCKCastContext sharedInstance].discoveryManager;
+        [discovery startDiscovery];
+        [[GCKCastContext sharedInstance] presentCastDialog];
+        reply(@{@"discoveredDeviceCount":@(discovery.deviceCount),@"receiverApp":VWYouTubeReceiver},nil,nil);
+        return;
+    }
     GCKCastSession *session = [GCKCastContext sharedInstance].sessionManager.currentCastSession;
     GCKMediaStatus *status = self.latestStatus;
     if (!self.client || session.connectionState != GCKConnectionStateConnected || ![session.applicationMetadata.applicationID isEqualToString:VWYouTubeReceiver] || !status || status.playingAd || NSProcessInfo.processInfo.systemUptime - self.statusAt > 6 || ![VWString(params[@"session"]) isEqualToString:self.sessionToken] || ![params[@"mediaSessionID"] isKindOfClass:NSNumber.class] || [params[@"mediaSessionID"] integerValue] != status.mediaSessionID || ![VWString(params[@"contentID"]) isEqualToString:status.mediaInformation.contentID ?: status.mediaInformation.contentURL.absoluteString ?: @""]) {
@@ -305,7 +311,7 @@ static NSString *VWUUID(CBUUID *uuid) {
 }
 - (void)emit:(NSDictionary *)event { if (self.ready) [self call:@"__vwNativeEvent" value:event]; }
 - (void)viewDidLoad {
-    [super viewDidLoad]; self.title = @"VirtualWalking · 0.3.8"; self.token = NSUUID.UUID.UUIDString;
+    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.0"; self.token = NSUUID.UUID.UUIDString;
     NSString *bridgePath = [NSBundle.mainBundle pathForResource:@"native-bridge" ofType:@"js" inDirectory:@"Web"];
     NSString *bridge = [NSString stringWithContentsOfFile:bridgePath encoding:NSUTF8StringEncoding error:nil];
     NSData *tokenData = [NSJSONSerialization dataWithJSONObject:@[self.token] options:0 error:nil];
@@ -414,7 +420,7 @@ static NSString *VWUUID(CBUUID *uuid) {
 @end
 @implementation VWAppDelegate
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    GCKDiscoveryCriteria *criteria = [[GCKDiscoveryCriteria alloc] initWithApplicationID:kGCKDefaultMediaReceiverApplicationID];
+    GCKDiscoveryCriteria *criteria = [[GCKDiscoveryCriteria alloc] initWithApplicationID:VWYouTubeReceiver];
     GCKCastOptions *options = [[GCKCastOptions alloc] initWithDiscoveryCriteria:criteria];
     options.launchOptions = [[GCKLaunchOptions alloc] initWithRelaunchIfRunning:NO]; options.stopReceiverApplicationWhenEndingSession = NO; options.disableAnalyticsLogging = YES;
     [GCKCastContext setSharedInstanceWithOptions:options];
