@@ -399,6 +399,34 @@ static BOOL VWPhilipsDevicePublished = NO;
     NSString *html = [NSString stringWithContentsOfFile:[NSBundle.mainBundle pathForResource:@"native" ofType:@"html" inDirectory:@"Web"] encoding:NSUTF8StringEncoding error:nil];
     [self.web loadHTMLString:html baseURL:[NSURL URLWithString:VWOrigin]];
 }
+- (void)receiverCommand:(NSString *)method params:(NSDictionary *)params reply:(VWReply)reply {
+    NSString *key = [NSUserDefaults.standardUserDefaults stringForKey:@"VWTVReceiverKey"];
+    if (key.length != 24) { reply(nil, @"Zuerst waipu.tv direkt verbinden.", @"NotConnectedError"); return; }
+    NSMutableArray<NSString *> *parts = [NSMutableArray arrayWithObject:[NSString stringWithFormat:@"key=%@", key]];
+    if ([method isEqualToString:@"tv.receiver.play"]) {
+        NSString *videoID = VWString(params[@"id"]);
+        NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"^[A-Za-z0-9_-]{11}$" options:0 error:nil];
+        if ([regex numberOfMatchesInString:videoID options:0 range:NSMakeRange(0, videoID.length)] != 1) { reply(nil, @"Ungültige YouTube-ID.", @"TypeError"); return; }
+        [parts addObject:[NSString stringWithFormat:@"id=%@", videoID]];
+    }
+    if ([method isEqualToString:@"tv.receiver.rate"]) {
+        NSNumber *rate = [params[@"value"] isKindOfClass:NSNumber.class] ? params[@"value"] : nil;
+        if (!rate || rate.doubleValue < 0.25 || rate.doubleValue > 2.0) { reply(nil, @"Ungültiges Videotempo.", @"TypeError"); return; }
+        [parts addObject:[NSString stringWithFormat:@"value=%@", rate]];
+    }
+    NSString *command = [method substringFromIndex:[@"tv.receiver." length]];
+    NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"http://192.168.0.32:8765/%@?%@", command, [parts componentsJoinedByString:@"&"]]];
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+    request.timeoutInterval = 5;
+    [[[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        NSHTTPURLResponse *http = (NSHTTPURLResponse *)response;
+        id json = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (error || http.statusCode != 200) reply(nil, error.localizedDescription ?: VWString([json isKindOfClass:NSDictionary.class] ? json[@"error"] : nil), @"NetworkError");
+            else reply(json ?: @{}, nil, nil);
+        });
+    }] resume];
+}
 - (void)connectWaipuDirect {
     UIAlertController *dialog = [UIAlertController alertControllerWithTitle:@"waipu.tv · Direktverbindung"
         message:@"Schlüssel vom Fernseher eingeben. Kein Google Cast."
@@ -552,6 +580,7 @@ static BOOL VWPhilipsDevicePublished = NO;
     };
     if ([method hasPrefix:@"ble."]) [self.ble handle:method params:params reply:reply];
     else if ([method hasPrefix:@"cast."]) [self.cast handle:method params:params reply:reply];
+    else if ([method hasPrefix:@"tv.receiver."]) [self receiverCommand:method params:params reply:reply];
     else if ([method isEqualToString:@"video.last.get"]) {
         NSDictionary *saved = [NSUserDefaults.standardUserDefaults dictionaryForKey:@"VWLastYouTubeVideo"];
         reply(saved ?: @{},nil,nil);
