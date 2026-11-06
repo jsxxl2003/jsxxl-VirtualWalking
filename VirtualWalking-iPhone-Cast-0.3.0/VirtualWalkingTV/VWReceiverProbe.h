@@ -26,7 +26,10 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
 @property(nonatomic, copy) NSString *transport;
 @property(nonatomic, assign) BOOL finished;
 @property(nonatomic, assign) BOOL mediaRequested;
+@property(nonatomic, assign) BOOL launchRequested;
+@property(nonatomic, assign) BOOL launchSent;
 - (void)startHost:(NSString *)host port:(NSInteger)port completion:(void (^)(NSDictionary *))completion;
+- (void)startHost:(NSString *)host port:(NSInteger)port launch:(BOOL)launch completion:(void (^)(NSDictionary *))completion;
 - (void)cancel;
 @end
 @implementation VWReadOnlyCastProbe
@@ -40,9 +43,11 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
 - (void)send:(NSString *)type destination:(NSString *)destination nameSpace:(NSString *)nameSpace {
     BOOL allowed = ([type isEqualToString:@"CONNECT"] && [nameSpace isEqualToString:@"urn:x-cast:com.google.cast.tp.connection"]) ||
         ([type isEqualToString:@"GET_STATUS"] && ([nameSpace isEqualToString:@"urn:x-cast:com.google.cast.receiver"] || [nameSpace isEqualToString:@"urn:x-cast:com.google.cast.media"])) ||
-        ([type isEqualToString:@"PONG"] && [nameSpace isEqualToString:@"urn:x-cast:com.google.cast.tp.heartbeat"]);
+        ([type isEqualToString:@"PONG"] && [nameSpace isEqualToString:@"urn:x-cast:com.google.cast.tp.heartbeat"]) ||
+        ([type isEqualToString:@"LAUNCH"] && [nameSpace isEqualToString:@"urn:x-cast:com.google.cast.receiver"] && [destination isEqualToString:@"receiver-0"]);
     if (!allowed || self.finished) return;
-    NSData *json = [NSJSONSerialization dataWithJSONObject:@{@"type":type,@"requestId":@1} options:0 error:nil];
+    NSDictionary *command = [type isEqualToString:@"LAUNCH"] ? @{@"type":@"LAUNCH",@"appId":@"233637DE",@"requestId":@2} : @{@"type":type,@"requestId":@1};
+    NSData *json = [NSJSONSerialization dataWithJSONObject:command options:0 error:nil];
     NSString *payload = [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding];
     uint8_t bytes[4096]; size_t length = VWProbeEncode(bytes, sizeof(bytes), destination.UTF8String, nameSpace.UTF8String, payload.UTF8String);
     if (!length) { self.result[@"error"] = @"Cast-Nachricht zu groß"; [self finish]; return; }
@@ -76,6 +81,18 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
             if (!self.transport && [namespaces containsObject:@"urn:x-cast:com.google.cast.media"] && VWProbeText(entry[@"transportId"]).length) self.transport = VWProbeText(entry[@"transportId"]);
         }
         self.result[@"applications"] = descriptions;
+        if (self.launchRequested) {
+            BOOL running = NO;
+            for (NSDictionary *app in descriptions) if ([app[@"appId"] isEqualToString:@"233637DE"]) running = YES;
+            if (running) { self.result[@"youtubeRunning"] = @YES; [self finish]; return; }
+            if (!self.launchSent) {
+                self.launchSent = YES;
+                [self send:@"LAUNCH" destination:@"receiver-0" nameSpace:@"urn:x-cast:com.google.cast.receiver"];
+                self.result[@"launchCommandSent"] = @YES;
+                return;
+            }
+            return;
+        }
         if (self.transport && !self.mediaRequested) {
             self.mediaRequested = YES;
             [self send:@"CONNECT" destination:self.transport nameSpace:@"urn:x-cast:com.google.cast.tp.connection"];
@@ -94,6 +111,8 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
             [media addObject:safe];
         }
         self.result[@"media"] = media; [self finish];
+    } else if ([nameSpace isEqualToString:@"urn:x-cast:com.google.cast.receiver"] && [type isEqualToString:@"LAUNCH_ERROR"]) {
+        self.result[@"launchError"] = VWProbeText(body[@"reason"]); [self finish];
     }
 }
 - (void)receive {
@@ -117,8 +136,12 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
     });
 }
 - (void)startHost:(NSString *)host port:(NSInteger)port completion:(void (^)(NSDictionary *))completion {
+    [self startHost:host port:port launch:NO completion:completion];
+}
+- (void)startHost:(NSString *)host port:(NSInteger)port launch:(BOOL)launch completion:(void (^)(NSDictionary *))completion {
+    self.launchRequested = launch;
     self.completion = completion; self.buffer = [NSMutableData new];
-    self.result = [@{@"protocol":@"Google Cast",@"host":host,@"port":@(port),@"protocolConfirmed":@NO} mutableCopy];
+    self.result = [@{@"protocol":@"Google Cast",@"host":host,@"port":@(port),@"protocolConfirmed":@NO,@"launchTest":@(launch)} mutableCopy];
     nw_parameters_t parameters = nw_parameters_create_secure_tcp(^(nw_protocol_options_t options) {
         sec_protocol_options_t tls = nw_tls_copy_sec_protocol_options(options);
         // Only this local, read-only Cast connection accepts the receiver's self-signed certificate.
@@ -136,7 +159,7 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
         } else if (state == nw_connection_state_failed) { self.result[@"error"] = @"Cast-Dienst nicht erreichbar"; [self finish]; }
     });
     nw_connection_start(self.connection);
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (launch ? 8 : 5) * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         typeof(self) self = weakSelf; if (!self || self.finished) return;
         self.result[@"note"] = @"Zeitlimit: Eine ausbleibende Antwort beweist keine fehlende Unterstützung."; [self finish];
     });
@@ -306,6 +329,7 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
 @property(nonatomic, strong) UITextView *output;
 @property(nonatomic, strong) UITextField *address;
 @property(nonatomic, strong) NSArray *records;
+@property(nonatomic, strong) VWReadOnlyCastProbe *launchProbe;
 @end
 @implementation VWReceiverProbeController
 - (void)viewDidLoad {
@@ -315,8 +339,11 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
     UILabel *hint = [UILabel new]; hint.numberOfLines = 0; hint.text = @"AirServer am Fernseher öffnen. TV-Adresse prüfen und „Prüfen“ antippen.";
     self.address = [UITextField new]; self.address.borderStyle = UITextBorderStyleRoundedRect; self.address.keyboardType = UIKeyboardTypeDecimalPad; self.address.placeholder = @"TV-IPv4-Adresse (optional)"; self.address.accessibilityLabel = @"TV-IPv4-Adresse"; self.address.text = [NSUserDefaults.standardUserDefaults stringForKey:@"VWProbeTVAddress"] ?: @"192.168.0.53";
     UIButton *start = [UIButton buttonWithType:UIButtonTypeSystem]; [start setTitle:@"Prüfen" forState:UIControlStateNormal]; [start addTarget:self action:@selector(run) forControlEvents:UIControlEventTouchUpInside];
+    UIButton *launch = [UIButton buttonWithType:UIButtonTypeSystem];
+    [launch setTitle:@"YouTube auf TV starten (Direkt-IP-Test)" forState:UIControlStateNormal];
+    [launch addTarget:self action:@selector(launchYouTube) forControlEvents:UIControlEventTouchUpInside];
     self.output = [UITextView new]; self.output.editable = NO; self.output.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody]; self.output.text = @"Bereit. Die Prüfung startet keine TV-App und verändert keine Wiedergabe.";
-    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[hint,self.address,start,self.output]]; stack.axis = UILayoutConstraintAxisVertical; stack.spacing = 12; stack.translatesAutoresizingMaskIntoConstraints = NO; [self.view addSubview:stack];
+    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[hint,self.address,start,launch,self.output]]; stack.axis = UILayoutConstraintAxisVertical; stack.spacing = 12; stack.translatesAutoresizingMaskIntoConstraints = NO; [self.view addSubview:stack];
     [NSLayoutConstraint activateConstraints:@[[stack.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:16],[stack.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:16],[stack.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-16],[stack.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor constant:-16],[self.address.heightAnchor constraintEqualToConstant:44]]];
 }
 - (void)run {
@@ -336,12 +363,27 @@ static NSString *VWProbeSliceText(VWProbeSlice slice) {
         self.output.text = [lines componentsJoinedByString:@"\n\n"];
     }];
 }
+- (void)launchYouTube {
+    NSString *host = [self.address.text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    if (!VWProbePrivateAddress(host)) { self.output.text = @"Bitte eine gültige lokale IPv4-Adresse eingeben."; return; }
+    [self.launchProbe cancel];
+    self.launchProbe = [VWReadOnlyCastProbe new];
+    self.output.text = @"Direkte Cast-Verbindung wird aufgebaut; YouTube-Start wird angefordert …";
+    __weak typeof(self) weakSelf = self;
+    [self.launchProbe startHost:host port:8009 launch:YES completion:^(NSDictionary *result) {
+        typeof(self) self = weakSelf; if (!self) return;
+        BOOL running = [result[@"youtubeRunning"] boolValue];
+        NSString *status = running ? @"YouTube-TV-App läuft laut Cast-Empfänger." : [result[@"launchError"] isKindOfClass:NSString.class] ? [NSString stringWithFormat:@"YouTube-Start abgelehnt: %@",result[@"launchError"]] : [result[@"launchCommandSent"] boolValue] ? @"Startbefehl gesendet, Ausführung nicht bestätigt." : @"Direkte Verbindung oder Start fehlgeschlagen.";
+        self.output.text = [NSString stringWithFormat:@"%@\n\n%@",status,result];
+        self.records = @[result];
+    }];
+}
 - (void)share {
     NSDictionary *report = @{@"version":@"0.3.3",@"capturedAt":[[NSISO8601DateFormatter new] stringFromDate:NSDate.date],@"mode":@"read-only",@"target":self.address.text ?: @"",@"records":self.records ?: @[],@"scanComplete":@(self.probe.stopped),@"liveStreamingTested":@NO};
     NSData *data = [NSJSONSerialization dataWithJSONObject:report options:NSJSONWritingPrettyPrinted error:nil]; if (!data) return;
     NSURL *url = [[NSURL fileURLWithPath:NSTemporaryDirectory()] URLByAppendingPathComponent:@"VirtualWalking-AirServer-iPhone.json"]; if (![data writeToURL:url atomically:YES]) return;
     UIActivityViewController *share = [[UIActivityViewController alloc] initWithActivityItems:@[url] applicationActivities:nil]; share.popoverPresentationController.barButtonItem = self.navigationItem.rightBarButtonItem; [self presentViewController:share animated:YES completion:nil];
 }
-- (void)close { [self.probe stop]; [self dismissViewControllerAnimated:YES completion:nil]; }
-- (void)viewDidDisappear:(BOOL)animated { [super viewDidDisappear:animated]; if (self.isBeingDismissed || self.navigationController.isBeingDismissed) [self.probe stop]; }
+- (void)close { [self.launchProbe cancel]; [self.probe stop]; [self dismissViewControllerAnimated:YES completion:nil]; }
+- (void)viewDidDisappear:(BOOL)animated { [super viewDidDisappear:animated]; if (self.isBeingDismissed || self.navigationController.isBeingDismissed) { [self.launchProbe cancel]; [self.probe stop]; } }
 @end
