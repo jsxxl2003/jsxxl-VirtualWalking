@@ -345,10 +345,7 @@ static NSString *VWUUID(CBUUID *uuid) {
     }]];
     [choice addAction:[UIAlertAction actionWithTitle:@"Cast-Geräteauswahl" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         [[GCKCastContext sharedInstance].discoveryManager startDiscovery];
-        if (![[GCKCastContext sharedInstance] presentCastDialog]) {
-            UIAlertController *hint = [UIAlertController alertControllerWithTitle:@"Kein Cast-Dialog" message:@"Die Geräteauswahl konnte nicht geöffnet werden. Über „AirServer prüfen“ kannst du die angebotenen Empfangsdienste untersuchen." preferredStyle:UIAlertControllerStyleAlert];
-            [hint addAction:[UIAlertAction actionWithTitle:@"Schließen" style:UIAlertActionStyleCancel handler:nil]]; [weakSelf presentViewController:hint animated:YES completion:nil];
-        }
+        [[GCKCastContext sharedInstance] presentCastDialog];
     }]];
     [choice addAction:[UIAlertAction actionWithTitle:@"Abbrechen" style:UIAlertActionStyleCancel handler:nil]];
     choice.popoverPresentationController.barButtonItem = self.navigationItem.rightBarButtonItems.firstObject;

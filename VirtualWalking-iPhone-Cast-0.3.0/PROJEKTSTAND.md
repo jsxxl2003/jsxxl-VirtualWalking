@@ -45,6 +45,12 @@ Offizielle Anleitung: https://docs.titanos.tv/devviewinstall
 
 In Codemagic den Workflow „VirtualWalking iPhone“ vom aktuellen main ausführen.
 Das Projektverzeichnis behält wegen der vorhandenen Buildpfade seinen Namen
-VirtualWalking-iPhone-Cast-0.3.0. App-Version: 0.3.3, Build: 4.
+VirtualWalking-iPhone-Cast-0.3.0. App-Version: 0.3.3, Build: 5.
 Das erzeugte VirtualWalking-iPhone.ipa wie bisher mit Sideloadly installieren.
 Dieser Quellstand enthält noch keine neue direkte Videoübertragung.
+
+## Build-Korrektur 0.3.3 / 5
+
+Der Cast-Dialog wird als void-Methode aufgerufen. Die unzulässige Auswertung
+seines Rückgabewerts wurde entfernt. Codemagic speichert xcodebuild.log künftig
+als Build-Artefakt. Der native Neubuild muss den Fix noch bestätigen.

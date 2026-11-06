@@ -11,5 +11,8 @@
   "native_xcode_compile": false,
   "native_device_protocol_test": false,
   "live_video_stream_test": false,
-  "pending": "Build in Codemagic; device protocol report required before implementing the sender."
+  "pending": "Codemagic rebuild of build 5; full xcodebuild.log is now retained.",
+  "build": 5,
+  "cast_dialog_api_contract": "presentCastDialog returns void; now invoked as a statement",
+  "native_build_previous_result": "0.3.3 build 4 failed in CompileC; single native source error identified by SDK API review"
 }

@@ -20,6 +20,7 @@ workflows:
       - name: Build iPhone app
         script: |
           cd VirtualWalking-iPhone-Cast-0.3.0
+          set -o pipefail
           xcodebuild \
             -project VirtualWalkingTV.xcodeproj \
             -scheme VirtualWalkingTV \
@@ -27,7 +28,7 @@ workflows:
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO build
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee xcodebuild.log
 
       - name: Create IPA for Sideloadly
         script: |
@@ -38,4 +39,5 @@ workflows:
 
     artifacts:
       - VirtualWalking-iPhone-Cast-0.3.0/VirtualWalking-iPhone.ipa
+      - VirtualWalking-iPhone-Cast-0.3.0/xcodebuild.log
 
