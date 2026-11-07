@@ -22,6 +22,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
+    private static final String PLAYER_ORIGIN = "https://de.virtualwalking.receiver";
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final ExecutorService workers = Executors.newCachedThreadPool();
     private ServerSocket listener;
@@ -56,7 +57,7 @@ public class MainActivity extends Activity {
         label.setBackgroundColor(0xee211b2c);
         frame.addView(label, new FrameLayout.LayoutParams(-1, -1));
         setContentView(frame);
-        web.loadDataWithBaseURL("https://www.youtube.com", html(), "text/html", "UTF-8", null);
+        web.loadDataWithBaseURL(PLAYER_ORIGIN + "/", html(), "text/html", "UTF-8", null);
         workers.execute(this::serve);
         updateLabel();
     }
@@ -80,15 +81,20 @@ public class MainActivity extends Activity {
         ui.post(() -> label.setText("VirtualWalking · TV-Empfänger\n\nAdresse: http://" + ip() + ":8765\n\nSchlüssel: " + key + "\n\nBereit für Verbindung vom iPhone"));
     }
     private String html() {
-        return "<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'></head>"
-            + "<body style='margin:0;background:#000'><div id='player'></div>"
-            + "<script src='https://www.youtube.com/iframe_api'></script><script>"
-            + "var player=null;function onYouTubeIframeAPIReady(){player=new YT.Player('player',{height:'100%',width:'100%',videoId:'',playerVars:{playsinline:1,autoplay:1},events:{onReady:function(){document.body.style.margin='0'}}});}"
-            + "function vwPlay(id){if(player&&player.loadVideoById)player.loadVideoById(id);}"
-            + "function vwPause(){if(player&&player.pauseVideo)player.pauseVideo();}"
-            + "function vwResume(){if(player&&player.playVideo)player.playVideo();}"
-            + "function vwRate(v){if(player&&player.setPlaybackRate)player.setPlaybackRate(v);}"
-            + "</script></body></html>";
+        return "<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>"
+            + "<meta name='referrer' content='strict-origin-when-cross-origin'>"
+            + "<style>html,body,#player{width:100%;height:100%;margin:0;background:#000}</style></head>"
+            + "<body><div id='player'></div><script>"
+            + "var player=null,ready=false,pendingId=null,pendingRate=1,pendingPause=false;"
+            + "function onYouTubeIframeAPIReady(){player=new YT.Player('player',{height:'100%',width:'100%',"
+            + "playerVars:{playsinline:1,autoplay:1,origin:'" + PLAYER_ORIGIN + "',widget_referrer:'" + PLAYER_ORIGIN + "/'},"
+            + "events:{onReady:function(){ready=true;if(pendingId){player.loadVideoById(pendingId);player.setPlaybackRate(pendingRate);if(pendingPause)player.pauseVideo();}},"
+            + "onError:function(e){console.error('VirtualWalking YouTube error: '+e.data);}}});}"
+            + "function vwPlay(id){pendingId=id;pendingPause=false;if(ready)player.loadVideoById(id);}"
+            + "function vwPause(){pendingPause=true;if(ready)player.pauseVideo();}"
+            + "function vwResume(){pendingPause=false;if(ready)player.playVideo();}"
+            + "function vwRate(v){pendingRate=v;if(ready)player.setPlaybackRate(v);}"
+            + "</script><script src='https://www.youtube.com/iframe_api'></script></body></html>";
     }
     private void js(String command) { ui.post(() -> web.evaluateJavascript(command, null)); }
     private void serve() {
