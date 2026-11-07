@@ -35,11 +35,18 @@ public class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
-        byte[] secret = new byte[12];
-        new SecureRandom().nextBytes(secret);
-        StringBuilder b = new StringBuilder();
-        for (byte c : secret) b.append(String.format(Locale.US, "%02x", c & 255));
-        key = b.toString();
+        android.content.SharedPreferences settings = getSharedPreferences("receiver", MODE_PRIVATE);
+        key = settings.getString("connectionKey", null);
+        if (key == null || !key.matches("[a-f0-9]{24}")) {
+            byte[] secret = new byte[12];
+            new SecureRandom().nextBytes(secret);
+            StringBuilder b = new StringBuilder();
+            for (byte c : secret) b.append(String.format(Locale.US, "%02x", c & 255));
+            key = b.toString();
+            if (!settings.edit().putString("connectionKey", key).commit()) {
+                throw new IllegalStateException("Verbindungsschluessel konnte nicht gespeichert werden");
+            }
+        }
         FrameLayout frame = new FrameLayout(this);
         frame.setBackgroundColor(0xff19151f);
         web = new WebView(this);
