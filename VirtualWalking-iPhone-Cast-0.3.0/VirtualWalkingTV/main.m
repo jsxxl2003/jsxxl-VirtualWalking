@@ -4,8 +4,6 @@
 #import <SafariServices/SafariServices.h>
 #import <GoogleCast/GoogleCast.h>
 #import <Network/Network.h>
-#import <AVKit/AVKit.h>
-#import <AVFoundation/AVFoundation.h>
 #import <math.h>
 #import <objc/message.h>
 #import <sys/socket.h>
@@ -40,31 +38,6 @@ static NSURL *VWReceiverRequestURL(NSURL *base, NSString *command, NSDictionary<
     return parts.URL;
 }
 
-
-// A bounded TCP probe tests whether the box exposes a Cast v2 listener; it does not assume Cast support.
-static BOOL VWPortOpen(NSString *host, uint16_t port) {
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd < 0) return NO;
-    int flags = fcntl(fd, F_GETFL, 0);
-    if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) { close(fd); return NO; }
-    struct sockaddr_in address = {0};
-    address.sin_family = AF_INET;
-    address.sin_port = htons(port);
-    if (inet_pton(AF_INET, host.UTF8String, &address.sin_addr) != 1) { close(fd); return NO; }
-    int result = connect(fd, (struct sockaddr *)&address, sizeof(address));
-    if (result == 0) { close(fd); return YES; }
-    if (errno != EINPROGRESS) { close(fd); return NO; }
-    fd_set writable;
-    FD_ZERO(&writable);
-    FD_SET(fd, &writable);
-    struct timeval timeout = {.tv_sec = 2, .tv_usec = 0};
-    result = select(fd + 1, NULL, &writable, NULL, &timeout);
-    int error = 0;
-    socklen_t length = sizeof(error);
-    BOOL open = result > 0 && getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &length) == 0 && error == 0;
-    close(fd);
-    return open;
-}
 
 static GCKCastOptions *VWDirectCastOptions;
 static BOOL VWPhilipsProviderStarted = NO;
@@ -386,7 +359,7 @@ static BOOL VWPhilipsDevicePublished = NO;
 }
 - (void)emit:(NSDictionary *)event { if (self.ready) [self call:@"__vwNativeEvent" value:event]; }
 - (void)viewDidLoad {
-    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.11"; self.token = NSUUID.UUID.UUIDString;
+    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.12"; self.token = NSUUID.UUID.UUIDString;
     NSURLSessionConfiguration *receiverConfig = [NSURLSessionConfiguration ephemeralSessionConfiguration];
     receiverConfig.HTTPMaximumConnectionsPerHost = 1;
     receiverConfig.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
@@ -406,16 +379,8 @@ static BOOL VWPhilipsDevicePublished = NO;
     [NSLayoutConstraint activateConstraints:@[[self.web.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],[self.web.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],[self.web.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],[self.web.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor]]];
     UIBarButtonItem *button = [[UIBarButtonItem alloc] initWithTitle:@"TV verbinden" style:UIBarButtonItemStylePlain target:self action:@selector(connectTV)];
     button.tintColor = UIColor.systemTealColor;
-    button.accessibilityHint = @"Öffnet die TV-Verbindung und die AirServer-Prüfung.";
-    // Native AirPlay sender route discovery, independent of Google Cast.
-    // A route must actually appear and be selected before media routing can be tested.
-    AVRoutePickerView *airPlayPicker = [[AVRoutePickerView alloc] initWithFrame:CGRectMake(0, 0, 42, 36)];
-    airPlayPicker.activeTintColor = UIColor.systemPurpleColor;
-    airPlayPicker.tintColor = UIColor.systemTealColor;
-    airPlayPicker.prioritizesVideoDevices = YES;
-    airPlayPicker.accessibilityLabel = @"AirPlay-Empfänger suchen";
-    UIBarButtonItem *airPlayItem = [[UIBarButtonItem alloc] initWithCustomView:airPlayPicker];
-    self.navigationItem.rightBarButtonItems = @[button, airPlayItem];
+    button.accessibilityHint = @"Verwendet die gespeicherte Verbindung zur waipu.tv Box.";
+    self.navigationItem.rightBarButtonItem = button;
     self.ble = [VWBLE new]; self.ble.presenter = self; self.cast = [VWCast new];
     __weak typeof(self) weakSelf = self; VWEvent emit = ^(NSDictionary *event) { [weakSelf emit:event]; }; self.ble.emit = emit; self.cast.emit = emit; [self.cast start];
     NSString *html = [NSString stringWithContentsOfFile:[NSBundle.mainBundle pathForResource:@"native" ofType:@"html" inDirectory:@"Web"] encoding:NSUTF8StringEncoding error:nil];
@@ -513,115 +478,31 @@ static BOOL VWPhilipsDevicePublished = NO;
     [self presentViewController:dialog animated:YES completion:nil];
 }
 - (void)connectTV {
-    if (self.presentedViewController) return;
-    NSString *receiverHost = VWReceiverBaseURL(VWString([self receiverConnection][@"address"])).host ?: @"192.168.0.32";
-    UIAlertController *choice = [UIAlertController alertControllerWithTitle:@"TV verbinden" message:nil preferredStyle:UIAlertControllerStyleActionSheet];
+    if (self.presentedViewController || !self.navigationItem.rightBarButtonItem.enabled) return;
+    NSDictionary *connection = [self receiverConnection];
+    NSString *address = VWString(connection[@"address"]);
+    if (VWString(connection[@"key"]).length != 24 || !VWReceiverBaseURL(address)) {
+        [self connectWaipuDirect]; return;
+    }
+    UIBarButtonItem *button = self.navigationItem.rightBarButtonItem;
+    button.enabled = NO; button.title = @"Verbinde …";
     __weak typeof(self) weakSelf = self;
-    [choice addAction:[UIAlertAction actionWithTitle:@"waipu.tv · Letztes YouTube-Video vorbereiten" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        NSDictionary *saved = [NSUserDefaults.standardUserDefaults dictionaryForKey:@"VWLastYouTubeVideo"];
-        [weakSelf emit:@{@"type":@"training.action",@"action":@"prepare-tv",@"video":saved ?: @{}}];
-    }]];
-    [choice addAction:[UIAlertAction actionWithTitle:@"waipu.tv · Training pausieren" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        [weakSelf emit:@{@"type":@"training.action",@"action":@"pause"}];
-    }]];
-    [choice addAction:[UIAlertAction actionWithTitle:@"waipu.tv · Training fortsetzen" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        [weakSelf emit:@{@"type":@"training.action",@"action":@"resume"}];
-    }]];
-    [choice addAction:[UIAlertAction actionWithTitle:@"waipu.tv · Direkt verbinden (Android)" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { [weakSelf connectWaipuDirect]; }]];
-    [choice addAction:[UIAlertAction actionWithTitle:[NSString stringWithFormat:@"waipu.tv Box suchen (%@)", receiverHost] style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        GCKDiscoveryManager *discovery = [GCKCastContext sharedInstance].discoveryManager;
-        [discovery startDiscovery];
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (!weakSelf || weakSelf.presentedViewController) return;
-            NSMutableArray<GCKDevice *> *matches = [NSMutableArray new];
-            NSMutableArray<NSString *> *visible = [NSMutableArray new];
-            for (NSUInteger i = 0; i < discovery.deviceCount; i++) {
-                GCKDevice *device = [discovery deviceAtIndex:i];
-                NSString *name = device.friendlyName ?: @"Unbenannt";
-                NSString *address = device.networkAddress ? [device.networkAddress description] : @"";
-                [visible addObject:[NSString stringWithFormat:@"%@ (%@)", name, address]];
-                if ([address isEqualToString:receiverHost] || [name.lowercaseString containsString:@"waipu"]) {
-                    [matches addObject:device];
-                }
-            }
-            // Probe on a background queue so the interface remains responsive.
-            dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-                BOOL castPort = VWPortOpen(receiverHost, 8009);
-                BOOL discoveryPort = VWPortOpen(receiverHost, 8008);
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    if (!weakSelf || weakSelf.presentedViewController) return;
-                    NSString *detail = [NSString stringWithFormat:@"waipu.tv %@\nCast-Port 8009: %@\nCast-HTTP 8008: %@\n\nSDK-Geräte: %lu\n%@",
-                        receiverHost, castPort ? @"Erreichbar" : @"Nicht erreichbar",
-                        discoveryPort ? @"Erreichbar" : @"Nicht erreichbar",
-                        (unsigned long)discovery.deviceCount,
-                        visible.count ? [visible componentsJoinedByString:@"\n"] : @"Keine Geräte über Cast-SDK gefunden."];
-                    UIAlertController *result = [UIAlertController alertControllerWithTitle:@"waipu.tv · Verbindungstest"
-                        message:detail preferredStyle:UIAlertControllerStyleAlert];
-                    for (GCKDevice *device in matches) {
-                        [result addAction:[UIAlertAction actionWithTitle:[NSString stringWithFormat:@"Verbinden: %@", device.friendlyName ?: @"waipu.tv"]
-                            style:UIAlertActionStyleDefault handler:^(UIAlertAction *selected) {
-                                BOOL requested = [[GCKCastContext sharedInstance].sessionManager startSessionWithDevice:device];
-                                if (!requested) {
-                                    UIAlertController *failure = [UIAlertController alertControllerWithTitle:@"Cast-Verbindung"
-                                        message:@"Die Cast-Sitzung konnte nicht gestartet werden." preferredStyle:UIAlertControllerStyleAlert];
-                                    [failure addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-                                    [weakSelf presentViewController:failure animated:YES completion:nil];
-                                }
-                            }]];
-                    }
-                    [result addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
-                    [weakSelf presentViewController:result animated:YES completion:nil];
-                });
-            });
-            /* old dialog removed */
-        });
-    }]];
-    [choice addAction:[UIAlertAction actionWithTitle:@"waipu.tv · Cast-Protokoll prüfen" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        VWReceiverProbeController *probe = [VWReceiverProbeController new];
-        UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:probe];
-        [weakSelf presentViewController:navigation animated:YES completion:^{
-            probe.title = @"waipu.tv · Protokolltest";
-            probe.address.text = receiverHost;
-            [probe run];
-        }];
-    }]];
-    [choice addAction:[UIAlertAction actionWithTitle:@"AirServer prüfen" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        VWReceiverProbeController *probe = [VWReceiverProbeController new];
-        UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:probe];
-        [weakSelf presentViewController:navigation animated:YES completion:nil];
-    }]];
-    [choice addAction:[UIAlertAction actionWithTitle:@"Philips direkt verbinden (192.168.0.53)" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        GCKDiscoveryManager *discovery = [GCKCastContext sharedInstance].discoveryManager;
-        [discovery startDiscovery];
-        // Discovery is asynchronous; do not query the device list in the same event loop turn.
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        GCKDevice *device = [discovery deviceWithUniqueID:@"virtualwalking-philips-192-168-0-53"];
-        if (!device) {
-            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Philips · Geräteerkennung" message:[NSString stringWithFormat:@"SDK-Geräteanbieter gestartet: %@\nIP-Gerät erstellt: %@\nVeröffentlichung aufgerufen: %@\nGerät in Cast-Liste: Nein", VWPhilipsProviderStarted?@"Ja":@"Nein", VWPhilipsDeviceCreated?@"Ja":@"Nein", VWPhilipsDevicePublished?@"Ja":@"Nein"] preferredStyle:UIAlertControllerStyleAlert];
-            [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-            [weakSelf presentViewController:alert animated:YES completion:nil];
+    [self receiverCommand:@"tv.receiver.status" params:@{} reply:^(id value, NSString *error, NSString *name) {
+        button.enabled = YES; button.title = @"TV verbinden";
+        if (!weakSelf) return;
+        if (!error && [value isKindOfClass:NSDictionary.class] && [VWString(value[@"receiver"]) isEqualToString:@"VirtualWalking-TV"]) {
+            [weakSelf emit:@{@"type":@"tv.receiver.connected",@"address":address,@"reuse":@YES}];
             return;
         }
-        BOOL started = [[GCKCastContext sharedInstance].sessionManager startSessionWithDevice:device];
-        if (started) {
-            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Philips · Verbindungsaufbau" message:@"Cast-Sitzung angefordert. Ob die Verbindung zustande kommt, wird durch den Sitzungsstatus bestätigt." preferredStyle:UIAlertControllerStyleAlert];
-            [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-            [weakSelf presentViewController:alert animated:YES completion:nil];
-        }
-        if (!started) {
-            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Philips · Direkt-IP" message:@"Der Cast-Sitzungsmanager konnte den Verbindungsaufbau nicht starten." preferredStyle:UIAlertControllerStyleAlert];
-            [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-            [weakSelf presentViewController:alert animated:YES completion:nil];
-        }
-        });
-    }]];
-    [choice addAction:[UIAlertAction actionWithTitle:@"Cast-Geräteauswahl" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        [[GCKCastContext sharedInstance].discoveryManager startDiscovery];
-        [[GCKCastContext sharedInstance] presentCastDialog];
-    }]];
-    [choice addAction:[UIAlertAction actionWithTitle:@"Abbrechen" style:UIAlertActionStyleCancel handler:nil]];
-    choice.popoverPresentationController.barButtonItem = self.navigationItem.rightBarButtonItems.firstObject;
-    [self presentViewController:choice animated:YES completion:nil];
+        UIAlertController *result = [UIAlertController alertControllerWithTitle:@"TV-Verbindung fehlgeschlagen"
+            message:error ?: @"An der gespeicherten Adresse antwortet kein VirtualWalking-TV-Empfänger."
+            preferredStyle:UIAlertControllerStyleAlert];
+        [result addAction:[UIAlertAction actionWithTitle:@"Verbindung bearbeiten" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            [weakSelf dismissViewControllerAnimated:YES completion:^{ [weakSelf connectWaipuDirect]; }];
+        }]];
+        [result addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+        [weakSelf presentViewController:result animated:YES completion:nil];
+    }];
 }
 - (void)suspend { [self emit:@{@"type":@"app.suspend"}]; self.cast.latestStatus = nil; self.cast.statusAt = 0; UIApplication.sharedApplication.idleTimerDisabled = NO; }
 - (void)resume { [self emit:@{@"type":@"app.resume"}]; [self.cast.client requestStatus]; UIApplication.sharedApplication.idleTimerDisabled = YES; }

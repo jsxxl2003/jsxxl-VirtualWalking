@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const C=require('../Web/core.js'),{jointStart}=require('../Web/joint-start.js');
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
-function app(t,{nativeCast=false,nativeReceiver=false,nativeBLE=false,canControl=true,blockedVideo=false,failedStart=false,failedControl=false,failedStop=false,delayedYoutubePause=false,storage=new Map(),nativeLastVideo=null,nativeVideoRead=null}={}){
+function app(t,{nativeCast=false,nativeReceiver=false,nativeBLE=false,canControl=true,blockedVideo=false,failedStart=false,failedControl=false,dropControlResponse=false,failedStop=false,delayedYoutubePause=false,storage=new Map(),nativeLastVideo=null,nativeVideoRead=null}={}){
  const calls=[],store=storage,timers=new Set(),intervals=new Map();let clock=1000,driver,intervalId=0,youtube,pendingYoutubePause;
  class Element extends EventTarget{
   constructor(){super();this.value='';this.textContent='';this.hidden=false;this.disabled=false;this.checked=false;this.classList={toggle(){}};this.files=[];}
@@ -18,7 +18,7 @@ function app(t,{nativeCast=false,nativeReceiver=false,nativeBLE=false,canControl
  let remoteState='paused',remoteRate=1,remoteID=nativeReceiver?'':'M7lc1UVf-VE',remoteConnected=true;
  function sendTV(patch={}){window.dispatchEvent(new CustomEvent('vw-native',{detail:{type:'cast.status',connected:remoteConnected,applicationID:'233637DE',fresh:true,session:remoteConnected?'receiver-session':'closed',device:'Philips',media:remoteConnected?{contentID:remoteID,mediaSessionID:7,playerState:remoteState,rate:remoteRate,playingAd:false,...patch}:null}}));}
  if(nativeCast||nativeReceiver||nativeBLE){window.VirtualWalkingCast=require('../Web/cast.js');window.VirtualWalkingNative={rpc:async(method,params={})=>{
-  if(method==='tv.receiver.connection')return {connected:nativeReceiver};
+  if(method==='tv.receiver.connection')return {connected:nativeReceiver,address:'http://192.168.0.32:8765'};
   if(method.startsWith('tv.receiver.')){calls.push(method);if(method==='tv.receiver.play'){remoteID=params.id;remoteState='playing';}if(method==='tv.receiver.pause'||method==='tv.receiver.stop')remoteState='paused';if(method==='tv.receiver.resume')remoteState='playing';if(method==='tv.receiver.rate')remoteRate=params.value;return {playerReady:true,playerState:remoteState==='playing'?1:2,playerVideoId:remoteID,actualRate:remoteRate,feedbackAgeMs:0};}
   if(method==='video.last.get')return nativeVideoRead?nativeVideoRead():nativeLastVideo;
   if(method==='video.last.set'){nativeLastVideo={...params};return {};}
@@ -53,7 +53,7 @@ window.VirtualWalkingCore=C;window.VirtualWalkingStart={jointStart};
     else if(method==='ble.connect')result={characteristics:[C.TREADMILL_DATA,C.MACHINE_STATUS,...(canControl?[C.CONTROL_POINT]:[])].map(uuid=>({uuid,properties:{write:uuid===C.CONTROL_POINT,notify:true,indicate:true}}))};
     else if(method==='ble.write'){
      const [command,reason]=params.bytes;calls.push(command===0?'request-control':command===7?'motor-start':reason===2?'motor-pause':'motor-stop');
-     window.__vwNativeEvent({type:'ble.value',deviceId:'native-belt',generation:params.generation,uuid:C.CONTROL_POINT,bytes:[0x80,command,command===0&&failedControl?5:command===7&&failedStart||command===8&&failedStop?4:1]});
+     if(!(dropControlResponse&&command===0))window.__vwNativeEvent({type:'ble.value',deviceId:'native-belt',generation:params.generation,uuid:C.CONTROL_POINT,bytes:[0x80,command,command===0&&failedControl?5:command===7&&failedStart||command===8&&failedStop?4:1]});
     }else if(!method.startsWith('ble.'))result=await rpc(method,params);
     window.__vwNativeReceive({id:message.id,ok:true,result});
    }catch(error){window.__vwNativeReceive({id:message.id,ok:false,error:{message:error.message}});}
@@ -62,7 +62,7 @@ window.VirtualWalkingCore=C;window.VirtualWalkingStart={jointStart};
   vm.runInContext(fs.readFileSync(require.resolve('../Web/native-bridge.js'),'utf8'),context);
   vm.runInContext(fs.readFileSync(require.resolve('../Web/bluetooth.js'),'utf8'),context);
   const NativeClient=window.VirtualWalkingBluetooth.FTMSClient;
-  window.VirtualWalkingBluetooth.FTMSClient=class extends NativeClient{constructor(options){super(options);driver=this;}};
+  window.VirtualWalkingBluetooth.FTMSClient=class extends NativeClient{constructor(options){super({...options,commandTimeout:dropControlResponse?10:15000});driver=this;}};
  }
  vm.runInContext(fs.readFileSync(require.resolve('../Web/app.js'),'utf8'),context);
  t.after(()=>{window.dispatchEvent(new Event('pagehide'));for(const timer of timers)clearTimeout(timer);});

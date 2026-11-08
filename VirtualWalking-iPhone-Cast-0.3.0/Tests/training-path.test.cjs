@@ -2,6 +2,21 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const {app,flush}=require('./app-fixture.cjs');
 const last={id:'M7lc1UVf-VE',title:'Gespeicherte Laufstrecke'};
+test('reusing a saved TV connection cannot interrupt an already running training session',async t=>{
+ const a=app(t,{nativeBLE:true,nativeReceiver:true});a.click('connect');await flush();a.loadYoutube();await flush();a.sample(3);await flush();
+ const pauses=a.calls.filter(x=>x==='tv.receiver.pause').length;
+ a.nativeEvent({type:'tv.receiver.connected',reuse:true,address:'http://192.168.0.32:8765'});await flush();
+ assert.equal(a.el('trainingStatus').textContent,'Aufzeichnung läuft');
+ assert.equal(a.calls.filter(x=>x==='tv.receiver.pause').length,pauses);
+});
+test('a timed out native FTMS control request remains visible after fallback to manual starting',async t=>{
+ const a=app(t,{nativeBLE:true,nativeReceiver:true,dropControlResponse:true});a.click('connect');await flush();a.loadYoutube();await flush();a.sample(0);a.click('start');
+ await new Promise(r=>setTimeout(r,30));await flush();
+ assert.equal(a.driver().uncertainCommand,0);assert.equal(a.el('controlIssue').hidden,false);
+ assert.match(a.el('controlIssue').textContent,/Steuerfreigabe.*Keine Laufband-Bestätigung/);
+ assert.equal(a.calls.includes('motor-start'),false);assert.equal(a.el('pause').disabled,false);
+ a.click('pause');await flush();assert.equal(a.el('controlIssue').hidden,false);
+});
 test('native FTMS speed packets drive TV training even when the first packet already reports motion',async t=>{
  const a=app(t,{nativeBLE:true,nativeReceiver:true});a.click('connect');await flush();a.loadYoutube();await flush();
  a.sample(3);await flush();assert.equal(a.el('speed').textContent,'3,0');
@@ -22,23 +37,6 @@ test('waiting for native speed data can be cancelled and a later packet cannot r
  const a=app(t,{nativeBLE:true,nativeReceiver:true});a.click('connect');await flush();a.loadYoutube();await flush();a.click('start');await flush();
  a.click('pause');await flush();a.sample(2);await flush();
  assert.notEqual(a.el('trainingStatus').textContent,'Aufzeichnung läuft');assert.equal(a.calls.includes('motor-start'),false);
-});
-test('the TV menu prepares the saved video on the shared training route, without starting a workout',async t=>{
- const a=app(t,{nativeBLE:true,nativeReceiver:true,nativeLastVideo:last});await flush();
- a.nativeEvent({type:'training.action',action:'prepare-tv',video:last});await flush();
- assert.equal(a.calls.includes('tv.receiver.play'),true);assert.equal(a.calls.includes('tv.receiver.pause'),true);
- assert.equal(a.calls.includes('tv.receiver.resume'),false);assert.equal(a.calls.includes('motor-start'),false);
- assert.equal(a.el('trainingStatus').textContent,'Bereit');assert.match(a.el('message').textContent,/Laufband verbinden/);
- a.click('connect');await flush();a.sample(0);a.click('start');await flush();
- assert.equal(a.calls.includes('motor-start'),true);a.sample(4);await flush();
- assert.equal(a.el('trainingStatus').textContent,'Aufzeichnung läuft');
- a.nativeEvent({type:'training.action',action:'pause'});await flush();assert.equal(a.el('trainingStatus').textContent,'Pausiert');
- assert.equal(a.calls.includes('motor-pause'),true);
- a.nativeEvent({type:'training.action',action:'resume'});await flush();assert.equal(a.el('trainingStatus').textContent,'Aufzeichnung läuft');
-});
-test('TV menu resume without a Bluetooth connection cannot play independently',async t=>{
- const a=app(t,{nativeBLE:true,nativeReceiver:true});await flush();a.nativeEvent({type:'training.action',action:'resume'});await flush();
- assert.equal(a.calls.includes('tv.receiver.resume'),false);assert.match(a.el('message').textContent,/Laufband verbinden/);
 });
 test('the phone preview cannot override the selected TV playback intent',async t=>{
  const a=app(t,{nativeBLE:true,nativeReceiver:true});a.click('connect');await flush();a.loadYoutube();await flush();

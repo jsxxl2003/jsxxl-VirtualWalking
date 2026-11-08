@@ -2,7 +2,7 @@
 
 ## Aktueller Stand
 
-- iPhone-App: **0.4.11, Build 14**; Android-TV-Empfänger: **0.1.4, Build 5**.
+- iPhone-App: **0.4.12, Build 15**; Android-TV-Empfänger: **0.1.4, Build 5**.
 - Aktueller TV-Weg: eigener VirtualWalking-Empfänger auf der waipu.tv Box,
   HTTP-Port 8765. Die Box ist wieder per LAN verbunden; im Vodafone-Router
   ist 192.168.0.32 reserviert und am TV bestätigt. Zwischenzeitlich wurde
@@ -11,6 +11,34 @@
   `fix/tv-player-identity-0.1.1` sind Grundlage dieses gemeinsamen Stands.
 
 ## Behobene Fehler
+
+### Korrektur 0.4.12
+
+Auf ausdrücklichen Auftrag ist das alte TV-Aktionsmenü entfernt, einschließlich
+Cast-Geräteauswahl, AirServer-/Philips-Tests und separater Videoaktionen.
+Das AirPlay-Symbol neben „TV verbinden“ ist ebenfalls entfernt. Oben bleibt
+ein einzelner TV-Verbindungsbutton.
+
+„TV verbinden“ prüft jetzt direkt die gespeicherte Verbindung. Ist sie gültig,
+gibt es weder eine erneute Schlüsselabfrage noch einen Bestätigungsdialog.
+Ein erneuter Klick unterbricht keine laufende Einheit, wenn das bereits gewählte
+Ziel bestätigt wird. Der Einrichtungsdialog bleibt für eine fehlende Paarung
+sowie für die ausdrücklich gewählte Bearbeitung nach einem Verbindungsfehler
+erreichbar. Ein ungültiger oder fehlender Schlüssel wird nicht durch eine
+unautorisierte Verbindung umgangen. Die gespeicherten Daten bleiben erhalten.
+Videoauswahl und Training werden über die vorhandenen Hauptbedienelemente
+bedient. Die früheren zusätzlichen TV-Menü-Handler sind ebenfalls entfernt.
+
+Die Screenshots von 0.4.11 bestätigen das vorbereitete, pausierte TV-Video mit
+aktueller Tempo-Rückmeldung. Beim stehenden Band wechselt die App allerdings
+in den manuellen Startmodus; eine tatsächliche FTMS-Motorfreigabe ist weiter
+nicht bestätigt. Bisher wurde die genaue Ursache bei einer unbeantworteten
+Steuerfreigabe nicht in der vorhandenen Fehlerzeile angezeigt. Jetzt bleibt
+dieser konkrete FTMS-Fehler während des manuellen Wartens und nach dessen
+Abbruch sichtbar. Ein bloß geöffneter Steuerkanal heißt nun „Steuerkanal
+geöffnet“; „Steuerfreigabe bestätigt“ erscheint erst nach tatsächlicher
+positiver FTMS-Antwort. Es wurden keine neuen Motorbefehle oder automatischen
+Wiederholungen hinzugefügt. Die Diagnose am realen WELLFIT-Laufband steht aus.
 
 ### Korrektur 0.4.11
 
@@ -144,11 +172,11 @@ Laufband, iPhone und waipu-Box muss den gemeinsamen Stand noch bestätigen.
    „VirtualWalking Android TV APK“ manuell starten.
 2. In Codemagic „VirtualWalking iPhone“ von `main` bauen und die IPA wie bisher
    mit Sideloadly installieren.
-3. TV-Empfänger öffnen, am iPhone „TV verbinden“ → „waipu.tv · Direkt verbinden
-   (Android)“ öffnen. Die aktuelle TV-Adresse (aktuell http://192.168.0.32:8765)
-   und den Schlüssel vom TV eingeben und verbinden. YouTube-Video
-   öffnen oder „Letztes YouTube-Video vorbereiten“ wählen. Das Laufband per
-   Bluetooth verbinden und „Training starten“ antippen. Bei fehlender Steuerfreigabe das
+3. TV-Empfänger öffnen. Am iPhone genügt „TV verbinden“ für die gespeicherte
+   Verbindung. Nur bei der Ersteinrichtung Adresse und Schlüssel eingeben
+   (aktuell http://192.168.0.32:8765). Unter „YouTube / Link“ das angebotene letzte
+   Video öffnen oder ein anderes Laufvideo wählen. Das Laufband per Bluetooth
+   verbinden und „Training starten“ antippen. Bei fehlender Steuerfreigabe das
    Laufband am Gerät starten; Video und Aufzeichnung warten auf die Bewegung.
 
 ## DevView

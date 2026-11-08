@@ -1,17 +1,20 @@
 {
-  "version": "0.4.11",
-  "build": 14,
+  "version": "0.4.12",
+  "build": 15,
   "receiver_version": "0.1.4",
   "behavior_tests_passed": 57,
-  "regressions_reproduced_before_fix": 4,
+  "regressions_reproduced_before_fix": 2,
   "cast_wire_golden_vectors": "passed",
   "cast_wire_fuzz_cases": 10000,
   "cast_wire_address_and_undefined_sanitizers": "passed",
   "native_xcode_compile": false,
   "native_device_test": false,
-  "pending": "Build iPhone 0.4.11 in Codemagic. Test the training start on the physical setup. Confirmed LAN reservation: 192.168.0.32; TV receiver remains 0.1.4. The cause of the physical HTTP timeout is not yet proven.",
+  "pending": "Build iPhone 0.4.12 in Codemagic. TV receiver remains 0.1.4. TV preparation and speed feedback are confirmed on the device. Automatic treadmill control is not confirmed; inspect the now-visible FTMS control error.",
   "native_ble_to_training_integration": "passed with real bridge, FTMS parser, app handlers and direct receiver controller",
   "receiver_address_parser": "passed native C parser: IPv4, changed DHCP address, explicit/default port, invalid destinations",
   "receiver_address_change": "passed: response from previous destination cannot confirm the new receiver",
-  "tv_request_ordering": "passed: one in-flight request, shared status, coalesced pause, cancellation of queued resume, pause during backgrounding, named command failures"
+  "tv_request_ordering": "passed: one in-flight request, shared status, coalesced pause, cancellation of queued resume, pause during backgrounding, named command failures",
+  "saved_connection_reuse": "passed: an already selected saved receiver connection can be checked without interrupting a running workout",
+  "ftms_control_error_display": "passed: actual timed-out native Request Control remains visible during manual waiting and after cancellation; no motor start sent",
+  "tv_controls_cleanup": "source reviewed: single TV connection button; no AirPlay picker or legacy TV action sheet; setup dialog only for missing pairing or explicit connection editing after an error"
 }

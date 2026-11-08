@@ -81,13 +81,13 @@
     },settle:()=>{
      if(this.operation!==op||this.device!==device)return;
      if(!op.written||op.response===null)return;
-     if(op.response===1){if(code===0){this.controlGranted=true;this.controlDenied=false;}op.finish();}
+     if(op.response===1){if(code===0){this.controlGranted=true;this.controlDenied=false;this.controlIssue='';this.lastControlError='';}op.finish();}
      else{if(op.response===5)this.controlGranted=false;const messages={2:'Das Laufband unterstützt diesen Start-/Stoppbefehl nicht.',3:'Das Laufband hat den Befehl als ungültig abgelehnt.',4:'Das Laufband hat den Befehl abgelehnt. Zustand und Sicherheitsschlüssel am Gerät prüfen.',5:'Das Laufband erlaubt die Steuerung gerade nicht. Andere Trainings-App trennen und am Gerät prüfen.'};const message=messages[op.response]||'Unbekannte Laufband-Antwort '+op.response;if(code===0){this.controlDenied=true;this.lastControlError=label+': '+message;this.controlIssue=this.lastControlError;}op.finish(Error(message));}
     }};
     const fail=error=>{
      if(this.operation!==op||this.device!==device)return;
      const detail=label+': '+core.errorText(error);
-     if(op.sent){this.uncertain=true;this.uncertainCommand=code;this.lastControlError=detail;}
+     if(op.sent){this.uncertain=true;this.uncertainCommand=code;this.lastControlError=detail;if(code===0)this.controlIssue=detail;}
      op.finish(Error(detail));
     };
     this.operation=op;op.timer=setTimeout(()=>fail(Error('Keine Laufband-Bestätigung. Bitte Bluetooth neu verbinden.')),this.commandTimeout);
