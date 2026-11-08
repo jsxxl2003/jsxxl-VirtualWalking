@@ -50,7 +50,7 @@ window.VirtualWalkingCore=C;window.VirtualWalkingStart={jointStart};
    try{
     let result={};const {method,params}=message;
     if(method==='ble.choose')result={id:'native-belt',name:'WELLFIT TM Linker',generation:++generation};
-    else if(method==='ble.connect')result={characteristics:[C.TREADMILL_DATA,C.MACHINE_STATUS,...(canControl?[C.CONTROL_POINT]:[])].map(uuid=>({uuid,properties:{write:uuid===C.CONTROL_POINT&&!nativeWriteWithoutResponse,writeWithoutResponse:uuid===C.CONTROL_POINT&&nativeWriteWithoutResponse,notify:true,indicate:true}}))};
+    else if(method==='ble.connect')result={characteristics:[C.TREADMILL_DATA,C.MACHINE_STATUS,...(canControl?[C.CONTROL_POINT]:[])].map(uuid=>({uuid,properties:{write:Number(uuid===C.CONTROL_POINT&&!nativeWriteWithoutResponse),writeWithoutResponse:Number(uuid===C.CONTROL_POINT&&nativeWriteWithoutResponse),notify:1,indicate:1}}))};
     else if(method==='ble.write'){
      if((params.withResponse!==false)===nativeWriteWithoutResponse)throw Error('Schreibmodus wird vom Laufband nicht angeboten.');
      nativeWriteModes.push(params.withResponse!==false?'with-response':'without-response');

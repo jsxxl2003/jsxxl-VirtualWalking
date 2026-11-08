@@ -95,7 +95,7 @@
    this.onChange();
   }
   matches(){return this.connected&&!!this.source&&this.state?.playerVideoId===this.source;}
-  fresh(){return this.matches()&&!this.suspended&&this.state?.playerReady===true&&this.now()-this.receivedAt<5000&&this.state?.feedbackAgeMs>=0&&this.state.feedbackAgeMs<5000;}
+  fresh(){return this.matches()&&!this.suspended&&this.state?.foreground!==false&&this.state?.playerReady===true&&this.now()-this.receivedAt<5000&&this.state?.feedbackAgeMs>=0&&this.state.feedbackAgeMs<5000;}
   get playing(){return this.fresh()&&this.state?.playerState===1;}
   get rate(){return this.fresh()&&Number.isFinite(this.state?.actualRate)?this.state.actualRate:null;}
   async poll(){
@@ -132,10 +132,11 @@
     this.check(signal,epoch);
     const status=await this.readStatus();this.check(signal,epoch);this.accept(status);
     if(status.playerError)throw Error('YouTube-Fehler '+status.playerError);
+    if(status.foregroundError)throw Error(status.foregroundError);
     if(this.fresh()&&predicate(status))return;
     await new Promise(resolve=>setTimeout(resolve,200));
    }
-   throw Error('Der TV hat die Wiedergabe nicht bestätigt.');
+   throw Error(this.state?.foreground===false?'Der TV-Empfänger läuft noch im Hintergrund. Bitte die App am TV öffnen und ‚Über anderen Apps einblenden‘ erlauben.':'Der TV hat die Wiedergabe nicht bestätigt.');
   }
   async prepare(signal){
    if(!this.source)throw Error('Bitte ein YouTube-Laufvideo wählen.');

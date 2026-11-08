@@ -1,15 +1,15 @@
 {
-  "version": "0.4.13",
-  "build": 16,
-  "receiver_version": "0.1.4",
-  "behavior_tests_passed": 64,
-  "regressions_reproduced_before_fix": 5,
+  "version": "0.4.14",
+  "build": 17,
+  "receiver_version": "0.1.5",
+  "behavior_tests_passed": 67,
+  "regressions_reproduced_before_fix": 6,
   "cast_wire_golden_vectors": "passed",
   "cast_wire_fuzz_cases": 10000,
   "cast_wire_address_and_undefined_sanitizers": "passed",
   "native_xcode_compile": false,
   "native_device_test": false,
-  "pending": "Build iPhone 0.4.13 in Codemagic and test actual WELLFIT start. The prior screenshot proves confirmed GATT writes are unavailable; support for the alternate mode and FTMS start acceptance remain to be checked on the device. TV receiver stays 0.1.4.",
+  "pending": "Build iPhone 0.4.14 in Codemagic; test actual WELLFIT advertised write modes and FTMS motor start. Install receiver 0.1.5, grant Android display-over-other-apps permission once, test return from another TV app and cancellation. Native device behavior remains unconfirmed.",
   "native_ble_to_training_integration": "passed with real bridge, FTMS parser, app handlers and direct receiver controller",
   "receiver_address_parser": "passed native C parser: IPv4, changed DHCP address, explicit/default port, invalid destinations",
   "receiver_address_change": "passed: response from previous destination cannot confirm the new receiver",
@@ -19,5 +19,8 @@
   "tv_controls_cleanup": "source reviewed: single TV connection button; no AirPlay picker or legacy TV action sheet; setup dialog only for missing pairing or explicit connection editing after an error",
   "native_ble_writer_selection": "passed: without-response-only, both modes, read-only, retained confirmed writes, no mode retry after denial",
   "native_ble_without_response_confirmation": "passed: transport submission alone cannot grant control; missing FTMS start response blocks repetition and permits stop; full training and TV preparation require real FTMS responses",
-  "native_ble_flow_control": "source reviewed: only advertised write properties accepted; Request Control and stop may wait for readiness with bounded timeout; motor start is never deferred; disconnect and timeout clear queued data"
+  "native_ble_flow_control": "source reviewed: only advertised write properties accepted; Request Control and stop may wait for readiness with bounded timeout; motor start is never deferred; disconnect and timeout clear queued data",
+  "native_ble_property_serialization": "passed: 0/1 native property fixture reproduced the exact 0.4.13 writeValue error; numeric and boolean flags now produce the same writer; six regression cases failed before normalization",
+  "receiver_foreground": "source reviewed: authenticated play/resume reuse singleTask activity only with system permission; status/pause/stop/rate never open it; pause/stop and a bounded timeout discard pending playback; physical Android permission and lifecycle behavior pending",
+  "receiver_foreground_confirmation": "passed: fresh player feedback from a background receiver cannot confirm playback; blocked opening reports its permission error"
 }

@@ -247,7 +247,8 @@ static BOOL VWPhilipsDevicePublished = NO;
     NSMutableArray *descriptions = [NSMutableArray new];
     for (CBCharacteristic *channel in service.characteristics) {
         NSString *uuid = VWUUID(channel.UUID); self.channels[uuid] = channel;
-        [descriptions addObject:@{@"uuid":uuid,@"properties":@{@"write":@((channel.properties & CBCharacteristicPropertyWrite) != 0),@"writeWithoutResponse":@((channel.properties & CBCharacteristicPropertyWriteWithoutResponse) != 0),@"notify":@((channel.properties & CBCharacteristicPropertyNotify) != 0),@"indicate":@((channel.properties & CBCharacteristicPropertyIndicate) != 0)}}];
+        // Explicit NSNumber booleans: boxing a C comparison produces JSON 0/1.
+        [descriptions addObject:@{@"uuid":uuid,@"properties":@{@"write":(channel.properties & CBCharacteristicPropertyWrite) ? @YES : @NO,@"writeWithoutResponse":(channel.properties & CBCharacteristicPropertyWriteWithoutResponse) ? @YES : @NO,@"notify":(channel.properties & CBCharacteristicPropertyNotify) ? @YES : @NO,@"indicate":(channel.properties & CBCharacteristicPropertyIndicate) ? @YES : @NO}}];
     }
     [self finish:@"connect" value:@{@"characteristics":descriptions} error:nil name:nil];
 }
@@ -394,7 +395,7 @@ static BOOL VWPhilipsDevicePublished = NO;
 }
 - (void)emit:(NSDictionary *)event { if (self.ready) [self call:@"__vwNativeEvent" value:event]; }
 - (void)viewDidLoad {
-    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.13"; self.token = NSUUID.UUID.UUIDString;
+    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.14"; self.token = NSUUID.UUID.UUIDString;
     NSURLSessionConfiguration *receiverConfig = [NSURLSessionConfiguration ephemeralSessionConfiguration];
     receiverConfig.HTTPMaximumConnectionsPerHost = 1;
     receiverConfig.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;

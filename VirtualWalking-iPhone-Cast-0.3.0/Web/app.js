@@ -15,7 +15,7 @@
  const tv=window.VirtualWalkingNative?new (window.VirtualWalkingCast.RoutedController||window.VirtualWalkingCast.CastController)({rpc:window.VirtualWalkingNative.rpc,onChange:()=>{renderTV();}}):null;
  function renderTV(){
   const node=$('tvStatus');if(!node||!tv)return;
-  if(tv.receiver?.selected&&tv.route===tv.receiver){node.textContent=!tv.connected?'TV: '+tv.device+' nicht erreichbar. '+(tv.transportError||'Über „TV verbinden“ die Direktverbindung prüfen.'):!tv.matches()?'Verbunden: '+tv.device+' · „Training starten“ sendet das ausgewählte YouTube-Video.':!tv.fresh()?'TV: Warte auf aktuelle Rückmeldung.':'TV: '+tv.device+' · '+(tv.playing?'Wiedergabe':'Pausiert / bereit')+' · '+rateLabel(tv.rate);return;}
+  if(tv.receiver?.selected&&tv.route===tv.receiver){node.textContent=!tv.connected?'TV: '+tv.device+' nicht erreichbar. '+(tv.transportError||'Über „TV verbinden“ die Direktverbindung prüfen.'):tv.receiver.state?.foreground===false?'TV: '+tv.device+' · App läuft im Hintergrund. '+(tv.receiver.state.foregroundError||'„Training starten“ öffnet den TV-Empfänger.'):!tv.matches()?'Verbunden: '+tv.device+' · „Training starten“ sendet das ausgewählte YouTube-Video.':!tv.fresh()?'TV: Warte auf aktuelle Rückmeldung.':'TV: '+tv.device+' · '+(tv.playing?'Wiedergabe':'Pausiert / bereit')+' · '+rateLabel(tv.rate);return;}
   node.textContent=!tv.active?'TV: Über das Cast-Symbol oben verbinden.':!tv.connected?'TV: Nicht verbunden. Bitte über das Cast-Symbol erneut verbinden.':!tv.matches()?'Verbunden: '+tv.device+' · Bitte dasselbe YouTube-Video am TV öffnen.':!tv.fresh()?'TV: Warte auf aktuelle Rückmeldung.':'TV: '+tv.device+' · '+(tv.playing?'Wiedergabe':'Pausiert / bereit')+' · '+rateLabel(tv.rate);
  }
  window.addEventListener('vw-native',event=>{

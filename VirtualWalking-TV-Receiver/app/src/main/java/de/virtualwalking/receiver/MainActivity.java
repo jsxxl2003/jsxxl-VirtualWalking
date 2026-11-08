@@ -1,9 +1,13 @@
 package de.virtualwalking.receiver;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.webkit.WebChromeClient;
@@ -34,6 +38,10 @@ public class MainActivity extends Activity {
     private volatile double rate = 1.0;
     private volatile String playerFeedback = "{}";
     private volatile long feedbackAt;
+    private volatile boolean foreground;
+    private volatile String foregroundError = "";
+    private String pendingPlayback;
+    private int playbackTicket;
     public final class PlayerFeedback {
         @android.webkit.JavascriptInterface public void update(String value) {
             if (value == null || value.length() > 512) return;
@@ -84,6 +92,77 @@ public class MainActivity extends Activity {
         web.loadDataWithBaseURL(PLAYER_ORIGIN + "/", html(), "text/html", "UTF-8", null);
         workers.execute(this::serve);
         updateLabel();
+        ui.post(this::offerAutomaticOpening);
+    }
+
+    private void offerAutomaticOpening() {
+        android.content.SharedPreferences settings = getSharedPreferences("receiver", MODE_PRIVATE);
+        if (Settings.canDrawOverlays(this) || settings.getBoolean("automaticOpeningOffered", false)) return;
+        settings.edit().putBoolean("automaticOpeningOffered", true).apply();
+        new AlertDialog.Builder(this)
+            .setTitle("Automatisch am TV öffnen")
+            .setMessage("Damit VirtualWalking beim Trainingsstart vom iPhone nach vorn wechseln kann, bitte einmal in den TV-Einstellungen für VirtualWalking TV Empfänger ‚Über anderen Apps einblenden‘ erlauben.")
+            .setPositiveButton("Einstellungen öffnen", (dialog, which) -> {
+                try {
+                    startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())));
+                } catch (RuntimeException e) {
+                    new AlertDialog.Builder(this).setMessage("Bitte in den TV-Einstellungen unter Apps → Spezieller App-Zugriff → Über anderen Apps einblenden den VirtualWalking TV Empfänger erlauben. Diese Box bietet keinen direkten Einstellungsaufruf.").setPositiveButton("OK", null).show();
+                }
+            })
+            .setNegativeButton("Später", null).show();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        foreground = true;
+        foregroundError = "";
+        if (web != null) {
+            web.onResume();
+            if (pendingPlayback != null) {
+                String command = pendingPlayback; pendingPlayback = null;
+                web.evaluateJavascript(command, null);
+            }
+        }
+    }
+
+    @Override protected void onPause() {
+        foreground = false;
+        if (web != null) web.onPause();
+        super.onPause();
+    }
+
+    private void startPlayback(String command) {
+        ui.post(() -> {
+            int ticket = ++playbackTicket;
+            pendingPlayback = null;
+            foregroundError = "";
+            if (foreground) { web.evaluateJavascript(command, null); return; }
+            if (!Settings.canDrawOverlays(this)) {
+                foregroundError = "TV-Empfänger läuft im Hintergrund. Auf der Box für VirtualWalking TV Empfänger einmal ‚Über anderen Apps einblenden‘ erlauben oder die App am TV öffnen.";
+                return;
+            }
+            pendingPlayback = command;
+            try {
+                startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP));
+            } catch (RuntimeException e) {
+                pendingPlayback = null;
+                foregroundError = "Android konnte den TV-Empfänger nicht nach vorn öffnen. Bitte die App am TV öffnen.";
+            }
+            ui.postDelayed(() -> {
+                if (ticket == playbackTicket && !foreground && pendingPlayback != null) {
+                    pendingPlayback = null;
+                    foregroundError = "Android hat den Wechsel zum TV-Empfänger nicht bestätigt. Bitte die App am TV öffnen und die Freigabe ‚Über anderen Apps einblenden‘ prüfen.";
+                }
+            }, 4000);
+        });
+    }
+
+    private void cancelPlayback(String command) {
+        ui.post(() -> {
+            ++playbackTicket;
+            pendingPlayback = null;
+            web.evaluateJavascript(command, null);
+        });
     }
 
     private String ip() {
@@ -152,17 +231,17 @@ public class MainActivity extends Activity {
             int code = 200;
             JSONObject result = new JSONObject();
             result.put("receiver", "VirtualWalking-TV");
-            result.put("version", "0.1.4");
+            result.put("version", "0.1.5");
             if (!key.equals(args.get("key"))) { code = 403; result.put("error", "Schlüssel ungültig"); }
             else {
                 String route = uri.getPath();
                 if ("/play".equals(route)) {
                     String id = args.getOrDefault("id", "");
                     if (!id.matches("[A-Za-z0-9_-]{11}")) { code = 400; result.put("error", "Ungültige YouTube-ID"); }
-                    else { videoId = id; state = "requested"; js("vwPlay(" + JSONObject.quote(id) + ")"); ui.post(() -> label.setVisibility(View.GONE)); }
-                } else if ("/pause".equals(route)) { js("vwPause()"); state = "pause-requested"; }
-                else if ("/stop".equals(route)) { js("vwStop()"); state = "stop-requested"; }
-                else if ("/resume".equals(route)) { js("vwResume()"); state = "resume-requested"; }
+                    else { videoId = id; state = "requested"; startPlayback("vwPlay(" + JSONObject.quote(id) + ")"); ui.post(() -> label.setVisibility(View.GONE)); }
+                } else if ("/pause".equals(route)) { cancelPlayback("vwPause()"); state = "pause-requested"; }
+                else if ("/stop".equals(route)) { cancelPlayback("vwStop()"); state = "stop-requested"; }
+                else if ("/resume".equals(route)) { startPlayback("vwResume()"); state = "resume-requested"; }
                 else if ("/rate".equals(route)) {
                     try { double v = Double.parseDouble(args.getOrDefault("value", "")); if (!Double.isFinite(v) || v < 0.25 || v > 2.0) throw new IllegalArgumentException(); rate = v; js("vwRate(" + v + ")"); }
                     catch (Exception e) { code = 400; result.put("error", "Geschwindigkeit außerhalb 0.25–2.0"); }
@@ -175,6 +254,8 @@ public class MainActivity extends Activity {
                 result.put("actualRate", feedback.optDouble("actualRate", 1.0));
                 result.put("playerError", feedback.optInt("playerError", 0));
                 result.put("feedbackAgeMs", feedbackAt == 0 ? 999999 : android.os.SystemClock.elapsedRealtime() - feedbackAt);
+                result.put("foreground", foreground);
+                result.put("foregroundError", foregroundError);
                 result.put("note", "HTTP bestaetigt den Auftrag. playerState und actualRate stammen vom YouTube-Player.");
             }
             byte[] body = result.toString().getBytes(StandardCharsets.UTF_8);
@@ -184,6 +265,8 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) {}
     }
     @Override public void onDestroy() {
+        ++playbackTicket; pendingPlayback = null;
+        ui.removeCallbacksAndMessages(null);
         try { if (listener != null) listener.close(); } catch (IOException ignored) {}
         workers.shutdownNow();
         if (web != null) web.destroy();

@@ -1,4 +1,4 @@
-# VirtualWalking TV-Empfänger 0.1.4
+# VirtualWalking TV-Empfänger 0.1.5
 
 Android-TV-Empfänger für die waipu.tv Box. Das iPhone steuert Video, Pause,
 Fortsetzen, Beenden und Videotempo direkt über das Heimnetz. Das Video bleibt
@@ -9,10 +9,23 @@ Er lauscht auf Port 8765. Der Schlüssel wird bei normalen App-Neustarts beibeha
 
 ## Mit der iPhone-App verwenden
 
-Mit iPhone-Version 0.4.8 verwenden. Über „TV verbinden“ die Direktverbindung
+Mit iPhone-Version 0.4.14 verwenden. Über „TV verbinden“ die Direktverbindung
 herstellen. Ein YouTube-Video öffnen und die vorhandenen Trainingsknöpfe benutzen.
 Eine Steuerfreigabe für den Laufbandmotor ist keine Voraussetzung für manuelles
 Laufen mit Video und Aufzeichnung. Das Band in diesem Fall am Gerät bedienen.
+
+## Automatisch nach vorn wechseln
+
+Beim ersten Öffnen von 0.1.5 bietet die TV-App an, die Systemeinstellung
+„Über anderen Apps einblenden“ zu öffnen. Für „VirtualWalking TV Empfänger“
+einmal erlauben. Ab dann holen authentifizierte Wiedergabe- und Fortsetzen-
+Befehle vom iPhone die bereits laufende App nach vorn. Es wird kein Overlay
+über das Video gelegt. Ohne Freigabe bleibt manuelles Öffnen am TV möglich.
+
+„Verbunden“ bestätigt die Erreichbarkeit. `foreground` meldet zusätzlich, ob
+die TV-App im Vordergrund ist. Ohne Vordergrund bestätigt die iPhone-App keine
+Wiedergabe. `foregroundError` nennt einen blockierten Wechsel. Ein durch Android
+beendeter Empfänger muss weiterhin am TV gestartet werden.
 
 ## Build
 

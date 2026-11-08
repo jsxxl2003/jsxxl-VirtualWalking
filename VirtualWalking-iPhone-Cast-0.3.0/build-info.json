@@ -1,5 +1,5 @@
 {
-  "version": "0.4.13",
+  "version": "0.4.14",
   "status": "behavior-tested-awaiting-device-check",
   "upstream": "VirtualWalking Bluefy 0.1.4",
   "upstream_files": {
@@ -9,8 +9,11 @@
   },
   "receiver_app_id": "233637DE",
   "cast_sdk": "4.8.6",
-  "source_base_commit": "7778d1bd7b7edf53f24b894ead6488587a1bf938",
+  "source_base_commit": "435e69b009dcced9054be3895b8a6a3305d85863",
   "features": [
+    "normalize native BLE numeric capability flags before selecting the write mode",
+    "authenticated TV playback opens the existing receiver task with user-granted Android permission",
+    "TV background state cannot confirm visible playback",
     "advertised native BLE write-without-response transport with mandatory FTMS acknowledgements",
     "no fallback or automatic retry after ambiguous motor command results",
     "one direct TV connection button without legacy TV menus or AirPlay icon",
@@ -26,16 +29,16 @@
     "persistent last selected YouTube video"
   ],
   "direct_video_sender_implemented": true,
-  "build": 16,
+  "build": 17,
   "default_transport": "direct-http-tv-receiver",
-  "receiver_version": "0.1.4",
+  "receiver_version": "0.1.5",
   "source_files_sha256": {
     "core.js": "c35b3c28e4a561cd365e7dd3d987a4a1e583eee9b8463128e9c841d604d80892",
     "bluetooth.js": "11e950c137fcaba1656258ec6490b7445320c4b26721d0ac46e65f9475798208",
     "joint-start.js": "f3a93401a4704d48b960744f9653e761c7a453b041e8ee1ee96ce21bf5486628",
-    "cast.js": "3588f9504d6967e9c77f655c87e15d20a54864742534fd887a3b4153dae0a9a7",
-    "app.js": "96accee6fc42ba92f2cf1d399b2bdfc5cb9ec4467773db9dc7d46a2e2fbb4d18",
-    "native-bridge.js": "b6d16e5382b3404d0ad0074a110b0b0b5a1b19542688fbd48e8e944aecac28d2"
+    "cast.js": "8458ccf9df91162d50b50447ccfee7fa9b90d58b2b2f27afbf87e1728d82eb34",
+    "app.js": "2b83da7f39e2cb3379bb79a6eb5fe2ef33b6d14fb421b218f22b85edfd4aec9b",
+    "native-bridge.js": "e0982afb221d1d27aed9eea1e343f788b90720111e0fb04cea245b33f7286acd"
   },
   "live_screen_mirroring_implemented": false
 }

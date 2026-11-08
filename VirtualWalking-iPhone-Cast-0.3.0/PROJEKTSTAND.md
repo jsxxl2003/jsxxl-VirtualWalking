@@ -2,7 +2,7 @@
 
 ## Aktueller Stand
 
-- iPhone-App: **0.4.13, Build 16**; Android-TV-Empfänger: **0.1.4, Build 5**.
+- iPhone-App: **0.4.14, Build 17**; Android-TV-Empfänger: **0.1.5, Build 6**.
 - Aktueller TV-Weg: eigener VirtualWalking-Empfänger auf der waipu.tv Box,
   HTTP-Port 8765. Die Box ist wieder per LAN verbunden; im Vodafone-Router
   ist 192.168.0.32 reserviert und am TV bestätigt. Zwischenzeitlich wurde
@@ -11,6 +11,46 @@
   `fix/tv-player-identity-0.1.1` sind Grundlage dieses gemeinsamen Stands.
 
 ## Behobene Fehler
+
+### Korrektur 0.4.14 und TV-Empfänger 0.1.5
+
+Der Nutzer bestätigt den unveränderten Schreibfehler auch in 0.4.13; ein neuer
+Screenshot zeigt die korrekte Version. Ursache im Adapter: Die Objective-C-
+Vergleichsausdrücke wurden als NSNumber mit Integer-Typ verpackt. JSON lieferte
+somit 0/1, während die Auswahl des Schreibmodus strikt auf false/true prüfte.
+Write=0 wurde fälschlich als verfügbar angesehen. Eine Testeingabe mit genau
+diesen numerischen Eigenschaften reproduziert den exakten Fehler aus dem Bild;
+sechs Regressionstests scheitern vor der Korrektur.
+
+Native Merkmale werden jetzt explizit mit @YES/@NO serialisiert. Die JavaScript-
+Schnittstelle normalisiert zusätzlich numerische Altwerte. Write=0 führt damit
+nicht mehr zur Wahl von writeValue. Ohne angebotenen Schreibmodus bleibt der
+Steuerkanal nicht verfügbar. Es wird kein nicht angebotener Modus erzwungen.
+FTMS-Antworten und tatsächliche Bewegung bleiben Voraussetzung für Motorstart
+und Aufzeichnung. Ob das reale WELLFIT den alternativen Modus und Start erlaubt,
+ist weiterhin am Gerät zu prüfen.
+
+Auf Wunsch soll der bereits erreichbare TV-Empfänger beim Training aus einer
+anderen TV-App nach vorn wechseln. TV 0.1.5 öffnet bei authentifiziertem /play
+oder /resume die bestehende singleTask-Activity. Android benötigt dafür die vom
+Nutzer einmal erteilte Berechtigung SYSTEM_ALERT_WINDOW. Der TV-Empfänger bietet
+einmalig den Aufruf der zugehörigen Systemeinstellungen an und fängt fehlende
+Einstellungsaktivitäten ab. Er erzeugt kein eigenes Overlay-Fenster. Status,
+Pause, Stopp und Tempoänderungen holen die App nicht nach vorn. Pause/Stopp
+sowie eine begrenzte Wartezeit verwerfen noch nicht ausgeführte Wiedergabe.
+
+Der Status meldet foreground und foregroundError. iPhone 0.4.14 zeigt den
+Hintergrundzustand in der bestehenden TV-Zeile und akzeptiert dort selbst frische
+Playerdaten nicht als bestätigte Wiedergabe. Ein vom System blockierter Wechsel
+meldet die nötige Freigabe. Ein vom Betriebssystem beendeter Empfänger wird damit
+nicht neu gestartet: Der Netzwerkempfänger muss noch laufen und erreichbar sein.
+Kein Autostart beim Einschalten der Box und keine Änderungen am Router.
+
+67 Verhaltenstests bestehen. Android-Kompilierung und beide realen Gerätetests
+werden getrennt protokolliert; der JavaScript-Test ersetzt keine native Prüfung.
+Quellen zur Android-Freigabe:
+https://developer.android.com/guide/components/activities/background-starts
+https://developer.android.com/reference/android/provider/Settings#canDrawOverlays(android.content.Context)
 
 ### Korrektur 0.4.13
 

@@ -84,6 +84,16 @@ test('HTTP acknowledgement cannot confirm a stale or wrong player',()=>{
  const {controller:c,status}=fixture();c.accept({...status,playerVideoId:'abcdefghijk',playerState:1});assert.equal(c.playing,false);
  c.accept({...status,feedbackAgeMs:10000,playerState:1});assert.equal(c.playing,false);
 });
+test('a background TV player cannot confirm visible playback even with fresh player feedback',()=>{
+ const {controller:c,status}=fixture();
+ c.accept({...status,playerState:1,foreground:false});assert.equal(c.connected,true);assert.equal(c.playing,false);assert.equal(c.fresh(),false);
+ c.accept({...status,playerState:1,foreground:true});assert.equal(c.playing,true);
+});
+test('a blocked TV foreground switch reports the permission problem before motor preparation',async()=>{
+ const c=new ReceiverController({rpc:async()=>({playerReady:true,playerState:1,actualRate:1,playerVideoId:id,feedbackAgeMs:0,foreground:false,foregroundError:'TV-Empfänger läuft im Hintergrund. Über anderen Apps einblenden erlauben.'})});
+ c.selected=true;c.setSource('youtube',id);
+ await assert.rejects(c.prepare(),/Über anderen Apps einblenden/);assert.equal(c.playing,false);
+});
 test('player errors prevent training preparation',async()=>{
  const {controller:c,status}=fixture();status.playerError=152;
  await assert.rejects(c.prepare(),/YouTube-Fehler 152/);

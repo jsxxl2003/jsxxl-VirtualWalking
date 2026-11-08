@@ -1,12 +1,14 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const vm=require('node:vm');const fs=require('node:fs');
 const {FTMSClient}=require('../Web/bluetooth.js');const C=require('../Web/core.js');
-function harness({controlResult=1,dropControlResponse=false,dropStartResponse=false,writeWithResponse=true,writeWithoutResponse=false}={}){
+function harness({controlResult=1,dropControlResponse=false,dropStartResponse=false,writeWithResponse=true,writeWithoutResponse=false,numericProperties=true}={}){
  const root=new EventTarget(),writes=[],notifications=[],modes=[];let generation=1;
  root.window=root;root.navigator={};root.DataView=DataView;root.Uint8Array=Uint8Array;root.ArrayBuffer=ArrayBuffer;root.EventTarget=EventTarget;root.Event=Event;root.CustomEvent=CustomEvent;root.setTimeout=setTimeout;root.clearTimeout=clearTimeout;
  root.webkit={messageHandlers:{virtualwalking:{postMessage:message=>queueMicrotask(()=>{
   let result={};
   if(message.method==='ble.choose')result={id:'device',name:'Mein echtes Laufband',generation:generation++};
-  if(message.method==='ble.connect')result={characteristics:[C.TREADMILL_DATA,C.MACHINE_STATUS,C.CONTROL_POINT].map(uuid=>({uuid,properties:{write:uuid===C.CONTROL_POINT&&writeWithResponse,writeWithoutResponse:uuid===C.CONTROL_POINT&&writeWithoutResponse,indicate:true,notify:true}}))};
+  // Objective-C boxed comparison expressions arrive as JSON numbers, not booleans.
+  const flag=value=>numericProperties?Number(value):value;
+  if(message.method==='ble.connect')result={characteristics:[C.TREADMILL_DATA,C.MACHINE_STATUS,C.CONTROL_POINT].map(uuid=>({uuid,properties:{write:flag(uuid===C.CONTROL_POINT&&writeWithResponse),writeWithoutResponse:flag(uuid===C.CONTROL_POINT&&writeWithoutResponse),indicate:flag(true),notify:flag(true)}}))};
   if(message.method==='ble.notify')notifications.push(message.params.uuid);
   if(message.method==='ble.write'){
    const confirmed=message.params.withResponse!==false;
@@ -26,6 +28,13 @@ test('a native write-without-response control point uses its advertised transpor
  await client.connect();await client.start();await client.stop(true);
  assert.deepEqual(h.writes,[[0],[7],[8,2]]);assert.deepEqual(h.modes,['without-response','without-response','without-response']);
  assert.equal(client.controlGranted,true);client.disconnect();
+});
+test('native boolean properties and legacy numeric properties select the same writer',async()=>{
+ for(const numericProperties of [false,true]){
+  const h=harness({writeWithResponse:false,writeWithoutResponse:true,numericProperties}),client=new FTMSClient({bluetooth:h.root.navigator.bluetooth});
+  await client.connect();assert.equal(client.control.properties.write,false);assert.equal(client.control.properties.writeWithoutResponse,true);
+  await client.start();assert.deepEqual(h.modes,['without-response','without-response']);client.disconnect();
+ }
 });
 test('a write-without-response transport acknowledgement alone never grants FTMS control',async()=>{
  const h=harness({writeWithResponse:false,writeWithoutResponse:true,dropControlResponse:true});const client=new FTMSClient({bluetooth:h.root.navigator.bluetooth,commandTimeout:10});
