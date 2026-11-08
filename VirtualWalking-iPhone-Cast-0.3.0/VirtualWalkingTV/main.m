@@ -99,6 +99,9 @@ static BOOL VWPhilipsDevicePublished = NO;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary *> *pending;
 @property(nonatomic, assign) NSUInteger generation;
 @property(nonatomic, assign) NSUInteger serial;
+@property(nonatomic, strong) NSData *queuedWriteData;
+@property(nonatomic, strong) CBCharacteristic *queuedWriteChannel;
+@property(nonatomic, assign) BOOL writeWithResponsePending;
 @property(nonatomic, copy) VWEvent emit;
 - (void)handle:(NSString *)method params:(NSDictionary *)params reply:(VWReply)reply;
 - (void)close;
@@ -107,7 +110,22 @@ static BOOL VWPhilipsDevicePublished = NO;
 - (instancetype)init { if ((self = [super init])) { self.channels = [NSMutableDictionary new]; self.pending = [NSMutableDictionary new]; self.names = [NSMutableDictionary new]; } return self; }
 - (void)finish:(NSString *)key value:(id)value error:(NSString *)error name:(NSString *)name {
     NSDictionary *item = self.pending[key]; if (!item) return;
-    [self.pending removeObjectForKey:key]; VWReply reply = item[@"reply"]; reply(value, error, name);
+    [self.pending removeObjectForKey:key];
+    if ([key isEqualToString:@"write"]) { self.queuedWriteData = nil; self.queuedWriteChannel = nil; self.writeWithResponsePending = NO; }
+    VWReply reply = item[@"reply"]; reply(value, error, name);
+}
+- (void)flushWriteWithoutResponse {
+    if (!self.queuedWriteData || !self.queuedWriteChannel || !self.pending[@"write"]) return;
+    CBCharacteristic *channel = self.queuedWriteChannel;
+    if (self.peripheral.state != CBPeripheralStateConnected || self.channels[VWUUID(channel.UUID)] != channel) {
+        [self finish:@"write" value:nil error:@"Bluetooth-Verbindung vor dem Senden getrennt." name:@"NetworkError"]; return;
+    }
+    if (!self.peripheral.canSendWriteWithoutResponse) return;
+    NSData *data = self.queuedWriteData;
+    self.queuedWriteData = nil; self.queuedWriteChannel = nil;
+    [self.peripheral writeValue:data forCharacteristic:channel type:CBCharacteristicWriteWithoutResponse];
+    // Only handed to Core Bluetooth. bluetooth.js still requires the FTMS indication.
+    [self finish:@"write" value:@{@"submitted":@YES,@"withResponse":@NO} error:nil name:nil];
 }
 - (void)store:(NSString *)key reply:(VWReply)reply seconds:(NSInteger)seconds {
     NSUInteger ticket = ++self.serial; self.pending[key] = @{@"reply":[reply copy], @"ticket":@(ticket)};
@@ -173,9 +191,23 @@ static BOOL VWPhilipsDevicePublished = NO;
         const uint8_t *b = data.bytes;
         valid = valid && ((data.length == 1 && (b[0] == 0 || b[0] == 7)) || (data.length == 2 && b[0] == 8 && (b[1] == 1 || b[1] == 2)));
         if (!valid || ![channel.UUID isEqual:[CBUUID UUIDWithString:@"2AD9"]]) { reply(nil,@"Nicht erlaubter FTMS-Befehl.",@"SecurityError"); return; }
-        if (!(channel.properties & CBCharacteristicPropertyWrite)) { reply(nil,@"Keine bestätigten Schreibzugriffe möglich.",@"NotSupportedError"); return; }
+        id responseOption = params[@"withResponse"];
+        if (responseOption && ![responseOption isKindOfClass:NSNumber.class]) { reply(nil,@"Ungültiger Bluetooth-Schreibmodus.",@"TypeError"); return; }
+        BOOL withResponse = responseOption ? [responseOption boolValue] : YES;
+        CBCharacteristicProperties required = withResponse ? CBCharacteristicPropertyWrite : CBCharacteristicPropertyWriteWithoutResponse;
+        if (!(channel.properties & required)) { reply(nil,withResponse ? @"Keine bestätigten Schreibzugriffe möglich." : @"Das Laufband bietet kein Schreiben ohne GATT-Bestätigung an.",@"NotSupportedError"); return; }
         if (self.pending[@"write"]) { reply(nil,@"Ein Bluetooth-Schreibzugriff wartet noch auf Bestätigung.",@"InvalidStateError"); return; }
-        [self store:@"write" reply:reply seconds:10]; [self.peripheral writeValue:data forCharacteristic:channel type:CBCharacteristicWriteWithResponse]; return;
+        if (!withResponse && b[0] == 7) {
+            // Never defer a motor start until after the user may have cancelled it.
+            if (!self.peripheral.canSendWriteWithoutResponse) { reply(nil,@"Bluetooth-Schreibpuffer nicht bereit. Der Motorstart wurde nicht eingereiht.",@"NetworkError"); return; }
+            [self.peripheral writeValue:data forCharacteristic:channel type:CBCharacteristicWriteWithoutResponse];
+            reply(@{@"submitted":@YES,@"withResponse":@NO},nil,nil); return;
+        }
+        [self store:@"write" reply:reply seconds:10];
+        self.writeWithResponsePending = withResponse;
+        if (withResponse) [self.peripheral writeValue:data forCharacteristic:channel type:CBCharacteristicWriteWithResponse];
+        else { self.queuedWriteData = data; self.queuedWriteChannel = channel; [self flushWriteWithoutResponse]; }
+        return;
     }
     reply(nil,@"Unbekannter Bluetooth-Aufruf.",@"NotSupportedError");
 }
@@ -215,7 +247,7 @@ static BOOL VWPhilipsDevicePublished = NO;
     NSMutableArray *descriptions = [NSMutableArray new];
     for (CBCharacteristic *channel in service.characteristics) {
         NSString *uuid = VWUUID(channel.UUID); self.channels[uuid] = channel;
-        [descriptions addObject:@{@"uuid":uuid,@"properties":@{@"write":@((channel.properties & CBCharacteristicPropertyWrite) != 0),@"notify":@((channel.properties & CBCharacteristicPropertyNotify) != 0),@"indicate":@((channel.properties & CBCharacteristicPropertyIndicate) != 0)}}];
+        [descriptions addObject:@{@"uuid":uuid,@"properties":@{@"write":@((channel.properties & CBCharacteristicPropertyWrite) != 0),@"writeWithoutResponse":@((channel.properties & CBCharacteristicPropertyWriteWithoutResponse) != 0),@"notify":@((channel.properties & CBCharacteristicPropertyNotify) != 0),@"indicate":@((channel.properties & CBCharacteristicPropertyIndicate) != 0)}}];
     }
     [self finish:@"connect" value:@{@"characteristics":descriptions} error:nil name:nil];
 }
@@ -224,8 +256,11 @@ static BOOL VWPhilipsDevicePublished = NO;
     [self finish:[@"notify:" stringByAppendingString:VWUUID(channel.UUID)] value:@{} error:error.localizedDescription ?: (channel.isNotifying ? nil : @"FTMS-Meldungen konnten nicht abonniert werden.") name:@"NetworkError"];
 }
 - (void)peripheral:(CBPeripheral *)device didWriteValueForCharacteristic:(CBCharacteristic *)channel error:(NSError *)error {
-    if (device != self.peripheral || self.channels[VWUUID(channel.UUID)] != channel || ![channel.UUID isEqual:[CBUUID UUIDWithString:@"2AD9"]]) return;
+    if (device != self.peripheral || !self.writeWithResponsePending || self.channels[VWUUID(channel.UUID)] != channel || ![channel.UUID isEqual:[CBUUID UUIDWithString:@"2AD9"]]) return;
     [self finish:@"write" value:@{} error:error.localizedDescription name:@"NetworkError"];
+}
+- (void)peripheralIsReadyToSendWriteWithoutResponse:(CBPeripheral *)device {
+    if (device == self.peripheral) [self flushWriteWithoutResponse];
 }
 - (void)peripheral:(CBPeripheral *)device didUpdateValueForCharacteristic:(CBCharacteristic *)channel error:(NSError *)error {
     if (device != self.peripheral || self.channels[VWUUID(channel.UUID)] != channel || error || !channel.value) return;
@@ -359,7 +394,7 @@ static BOOL VWPhilipsDevicePublished = NO;
 }
 - (void)emit:(NSDictionary *)event { if (self.ready) [self call:@"__vwNativeEvent" value:event]; }
 - (void)viewDidLoad {
-    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.12"; self.token = NSUUID.UUID.UUIDString;
+    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.13"; self.token = NSUUID.UUID.UUIDString;
     NSURLSessionConfiguration *receiverConfig = [NSURLSessionConfiguration ephemeralSessionConfiguration];
     receiverConfig.HTTPMaximumConnectionsPerHost = 1;
     receiverConfig.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;

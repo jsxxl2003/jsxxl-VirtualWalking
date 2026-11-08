@@ -2,8 +2,8 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const C=require('../Web/core.js'),{jointStart}=require('../Web/joint-start.js');
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
-function app(t,{nativeCast=false,nativeReceiver=false,nativeBLE=false,canControl=true,blockedVideo=false,failedStart=false,failedControl=false,dropControlResponse=false,failedStop=false,delayedYoutubePause=false,storage=new Map(),nativeLastVideo=null,nativeVideoRead=null}={}){
- const calls=[],store=storage,timers=new Set(),intervals=new Map();let clock=1000,driver,intervalId=0,youtube,pendingYoutubePause;
+function app(t,{nativeCast=false,nativeReceiver=false,nativeBLE=false,nativeWriteWithoutResponse=false,canControl=true,blockedVideo=false,failedStart=false,failedControl=false,dropControlResponse=false,failedStop=false,delayedYoutubePause=false,storage=new Map(),nativeLastVideo=null,nativeVideoRead=null}={}){
+ const calls=[],nativeWriteModes=[],store=storage,timers=new Set(),intervals=new Map();let clock=1000,driver,intervalId=0,youtube,pendingYoutubePause;
  class Element extends EventTarget{
   constructor(){super();this.value='';this.textContent='';this.hidden=false;this.disabled=false;this.checked=false;this.classList={toggle(){}};this.files=[];}
   append(){}replaceChildren(){}setAttribute(){}removeAttribute(){}load(){}focus(){}blur(){}
@@ -50,8 +50,10 @@ window.VirtualWalkingCore=C;window.VirtualWalkingStart={jointStart};
    try{
     let result={};const {method,params}=message;
     if(method==='ble.choose')result={id:'native-belt',name:'WELLFIT TM Linker',generation:++generation};
-    else if(method==='ble.connect')result={characteristics:[C.TREADMILL_DATA,C.MACHINE_STATUS,...(canControl?[C.CONTROL_POINT]:[])].map(uuid=>({uuid,properties:{write:uuid===C.CONTROL_POINT,notify:true,indicate:true}}))};
+    else if(method==='ble.connect')result={characteristics:[C.TREADMILL_DATA,C.MACHINE_STATUS,...(canControl?[C.CONTROL_POINT]:[])].map(uuid=>({uuid,properties:{write:uuid===C.CONTROL_POINT&&!nativeWriteWithoutResponse,writeWithoutResponse:uuid===C.CONTROL_POINT&&nativeWriteWithoutResponse,notify:true,indicate:true}}))};
     else if(method==='ble.write'){
+     if((params.withResponse!==false)===nativeWriteWithoutResponse)throw Error('Schreibmodus wird vom Laufband nicht angeboten.');
+     nativeWriteModes.push(params.withResponse!==false?'with-response':'without-response');
      const [command,reason]=params.bytes;calls.push(command===0?'request-control':command===7?'motor-start':reason===2?'motor-pause':'motor-stop');
      if(!(dropControlResponse&&command===0))window.__vwNativeEvent({type:'ble.value',deviceId:'native-belt',generation:params.generation,uuid:C.CONTROL_POINT,bytes:[0x80,command,command===0&&failedControl?5:command===7&&failedStart||command===8&&failedStop?4:1]});
     }else if(!method.startsWith('ble.'))result=await rpc(method,params);
@@ -67,7 +69,7 @@ window.VirtualWalkingCore=C;window.VirtualWalkingStart={jointStart};
  vm.runInContext(fs.readFileSync(require.resolve('../Web/app.js'),'utf8'),context);
  t.after(()=>{window.dispatchEvent(new Event('pagehide'));for(const timer of timers)clearTimeout(timer);});
  const packet=bytes=>{window.__vwNativeEvent({type:'ble.value',deviceId:driver.device.id,generation:driver.device.generation,uuid:C.TREADMILL_DATA,bytes});};
- return {sendTV,nativeEvent:detail=>window.dispatchEvent(new CustomEvent('vw-native',{detail})),tvVideo:id=>{remoteID=id;sendTV();},tvDisconnect:()=>{remoteConnected=false;sendTV();},tickUI:()=>{for(const {callback,delay} of intervals.values())if(delay===500)callback();},calls,store,el,nativeLastVideo:()=>nativeLastVideo,driver:()=>driver,click:id=>el(id).dispatchEvent(new Event('click')),loadVideo:()=>{el('fileInput').files=[{name:'Laufstrecke.mp4'}];el('fileInput').dispatchEvent(new Event('change'));},loadYoutube:(id='M7lc1UVf-VE')=>{el('videoUrl').value='https://youtu.be/'+id;el('linkPanel').dispatchEvent(new Event('submit'));},confirmYoutubePause:()=>pendingYoutubePause?.(),youtubeUserPlay:()=>youtube.playVideo(),youtubeState:()=>youtube?.state,sample:speed=>{clock+=100;if(nativeBLE){const value=Math.round(speed*100);packet([0,0,value&255,value>>8]);}else driver.options.onData({speed});for(const {callback,delay} of [...intervals.values()])if(delay===100)callback();},packet,advance:ms=>{clock+=ms;}};
+ return {sendTV,nativeEvent:detail=>window.dispatchEvent(new CustomEvent('vw-native',{detail})),tvVideo:id=>{remoteID=id;sendTV();},tvDisconnect:()=>{remoteConnected=false;sendTV();},tickUI:()=>{for(const {callback,delay} of intervals.values())if(delay===500)callback();},calls,nativeWriteModes,store,el,nativeLastVideo:()=>nativeLastVideo,driver:()=>driver,click:id=>el(id).dispatchEvent(new Event('click')),loadVideo:()=>{el('fileInput').files=[{name:'Laufstrecke.mp4'}];el('fileInput').dispatchEvent(new Event('change'));},loadYoutube:(id='M7lc1UVf-VE')=>{el('videoUrl').value='https://youtu.be/'+id;el('linkPanel').dispatchEvent(new Event('submit'));},confirmYoutubePause:()=>pendingYoutubePause?.(),youtubeUserPlay:()=>youtube.playVideo(),youtubeState:()=>youtube?.state,sample:speed=>{clock+=100;if(nativeBLE){const value=Math.round(speed*100);packet([0,0,value&255,value>>8]);}else driver.options.onData({speed});for(const {callback,delay} of [...intervals.values()])if(delay===100)callback();},packet,advance:ms=>{clock+=ms;}};
 }
 
 module.exports={app,flush};

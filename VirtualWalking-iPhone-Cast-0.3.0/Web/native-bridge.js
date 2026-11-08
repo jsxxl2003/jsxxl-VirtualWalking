@@ -21,11 +21,13 @@
  class Characteristic extends EventTarget{
   constructor(device,description){super();this.device=device;this.uuid=uuid(description.uuid);this.properties=description.properties||{};this.value=null;}
   async startNotifications(){await rpc('ble.notify',{deviceId:this.device.id,generation:this.device.generation,uuid:this.uuid});return this;}
-  async writeValue(value){
+  async write(value,withResponse){
    const bytes=ArrayBuffer.isView(value)?new Uint8Array(value.buffer,value.byteOffset,value.byteLength):new Uint8Array(value);
-   await rpc('ble.write',{deviceId:this.device.id,generation:this.device.generation,uuid:this.uuid,bytes:Array.from(bytes)});
+   await rpc('ble.write',{deviceId:this.device.id,generation:this.device.generation,uuid:this.uuid,bytes:Array.from(bytes),withResponse});
   }
+  writeValue(value){return this.write(value,true);}
   writeValueWithResponse(value){return this.writeValue(value);}
+  writeValueWithoutResponse(value){return this.write(value,false);}
  }
  class Device extends EventTarget{
   constructor(description){

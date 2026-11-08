@@ -2,7 +2,7 @@
 
 ## Aktueller Stand
 
-- iPhone-App: **0.4.12, Build 15**; Android-TV-Empfänger: **0.1.4, Build 5**.
+- iPhone-App: **0.4.13, Build 16**; Android-TV-Empfänger: **0.1.4, Build 5**.
 - Aktueller TV-Weg: eigener VirtualWalking-Empfänger auf der waipu.tv Box,
   HTTP-Port 8765. Die Box ist wieder per LAN verbunden; im Vodafone-Router
   ist 192.168.0.32 reserviert und am TV bestätigt. Zwischenzeitlich wurde
@@ -11,6 +11,48 @@
   `fix/tv-player-identity-0.1.1` sind Grundlage dieses gemeinsamen Stands.
 
 ## Behobene Fehler
+
+### Korrektur 0.4.13
+
+Der Screenshot von 0.4.12 zeigt den konkreten Fehler: „Steuerfreigabe (0x00) /
+writeValue: Keine bestätigten Schreibzugriffe möglich.“ Das stammt aus dem
+nativen Adapter, weil der Steuerkanal die Core-Bluetooth-Eigenschaft Write
+nicht anbietet. Die erfolgreiche Datenübertragung, Aufzeichnung und bestätigte
+TV-Tempoanpassung sind im selben Screenshot sichtbar. Ob WriteWithoutResponse
+angeboten wird, ist aus diesem Screenshot noch nicht ableitbar.
+
+Der native Adapter meldet jetzt auch WriteWithoutResponse an die Web-Schnittstelle.
+Der Client wählt einmal pro Verbindung anhand der tatsächlichen Eigenschaften
+einen Schreibmodus. Sind beide verfügbar, bleibt Write mit GATT-Bestätigung
+bevorzugt. Ist ausschließlich WriteWithoutResponse verfügbar, verwendet er
+diesen Modus. Ein nur lesbarer Steuerkanal gilt nicht als steuerbereit.
+Es gibt keinen Wechsel auf einen anderen Modus nach fehlgeschlagenen Befehlen.
+
+Die Rückgabe nach einem WriteWithoutResponse bestätigt nur die Übergabe an
+Core Bluetooth. Eine passende positive FTMS-Antwort 0x80 mit dem gesendeten
+Opcode bleibt vor dem nächsten Startschritt erforderlich. Erst bestätigte
+Bandbewegung und TV-Wiedergabe erlauben die Aufzeichnung. Ein Motorstart wird
+bei belegtem Bluetooth-Schreibpuffer nicht für später eingereiht. Request Control
+und Stopp können auf die Sendebereitschaft warten, mit begrenzter Wartezeit;
+Trennung und Zeitüberschreitung verwerfen ausstehende Daten. Die erlaubten
+Motorbefehle bleiben auf Request Control, Start und Pause/Stopp begrenzt.
+
+Sechs neue Transporttests und ein vollständiger Trainingsablauf über die
+native JavaScript-Schnittstelle bestehen. Fünf neue Fälle scheiterten am alten
+Adapter. Die native Core-Bluetooth-Kompilierung erfolgt in Codemagic; tatsächliche
+Schreibmerkmale und Motorfreigabe am WELLFIT müssen am Gerät geprüft werden.
+TV-Empfänger, gespeicherte Paarung und vereinfachte TV-Oberfläche bleiben bei
+ihrem bisherigen Verhalten.
+
+Die vom Nutzer gezeigte Fernbedienung trägt FCC-ID 2A4NH-A006. Die dazu
+veröffentlichten Zulassungsunterlagen nennen Jiangxi EQi Industrial und
+433,92 MHz. Das identifiziert den Fernbedienungs-Funkweg, liefert aber kein
+Bluetooth-Befehlsprotokoll des Laufbands. Quelle: https://fccid.io/2A4NH-A006
+Die Fernbedienung wird durch die Änderung nicht neu gekoppelt oder verändert.
+
+Apple-Dokumentation des Schreibwegs und der Sendebereitschaft:
+https://developer.apple.com/documentation/corebluetooth/cbcharacteristicproperties/writewithoutresponse
+https://developer.apple.com/documentation/corebluetooth/cbperipheral/cansendwritewithoutresponse
 
 ### Korrektur 0.4.12
 
@@ -156,7 +198,7 @@ bestehen; es gibt keine neuen Bedienknöpfe im Trainingsbildschirm.
 
 ## Prüfergebnis und Grenzen
 
-57 automatisierte Verhaltenstests einschließlich nativer JavaScript-Schnittstelle,
+64 automatisierte Verhaltenstests einschließlich nativer JavaScript-Schnittstelle,
 echtem FTMS-Parser, Trainingsoberfläche, TV-Controller und eingebettetem
 TV-Player-Skript und kompilierter nativer IPv4-Adressprüfung bestehen.
 Verspätete Rückmeldungen nach einem Adresswechsel sind abgedeckt. Der

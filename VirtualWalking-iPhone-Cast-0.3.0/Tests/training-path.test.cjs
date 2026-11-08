@@ -2,6 +2,16 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const {app,flush}=require('./app-fixture.cjs');
 const last={id:'M7lc1UVf-VE',title:'Gespeicherte Laufstrecke'};
+test('the training button can start and pause a native write-without-response treadmill after actual FTMS acknowledgements',async t=>{
+ const a=app(t,{nativeBLE:true,nativeReceiver:true,nativeWriteWithoutResponse:true});a.click('connect');await flush();a.loadYoutube();await flush();a.sample(0);a.click('start');await flush();
+ assert.equal(a.driver().controlGranted,true);assert.equal(a.calls.filter(x=>x==='motor-start').length,1);
+ assert.notEqual(a.el('trainingStatus').textContent,'Aufzeichnung läuft');
+ a.sample(2);await flush();assert.equal(a.el('trainingStatus').textContent,'Aufzeichnung läuft');
+ assert.equal(a.el('controlMode').textContent,'FTMS · Steuerfreigabe bestätigt');
+ a.click('pause');await flush();assert.equal(a.calls.includes('motor-pause'),true);
+ assert.deepEqual(a.nativeWriteModes,['without-response','without-response','without-response']);
+ assert.equal(a.el('trainingStatus').textContent,'Pausiert');
+});
 test('reusing a saved TV connection cannot interrupt an already running training session',async t=>{
  const a=app(t,{nativeBLE:true,nativeReceiver:true});a.click('connect');await flush();a.loadYoutube();await flush();a.sample(3);await flush();
  const pauses=a.calls.filter(x=>x==='tv.receiver.pause').length;

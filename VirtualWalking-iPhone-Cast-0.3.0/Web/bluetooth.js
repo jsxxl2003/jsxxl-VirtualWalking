@@ -43,8 +43,9 @@
      stage='Schreibzugriff';
      // Prefer the compatibility API when a browser supplies it. Use one writer
      // for the connection; never try another writer after an ambiguous failure.
-     const writer=typeof point.writeValue==='function'?'writeValue':typeof point.writeValueWithResponse==='function'?'writeValueWithResponse':null;
-     if(!writer)throw Error('Der Browser stellt für den FTMS-Steuerkanal keine bestätigte Schreibfunktion bereit.');
+     const confirmedWriter=typeof point.writeValue==='function'?'writeValue':typeof point.writeValueWithResponse==='function'?'writeValueWithResponse':null;
+     const writer=point.properties?.write!==false&&confirmedWriter?confirmedWriter:point.properties?.writeWithoutResponse===true&&typeof point.writeValueWithoutResponse==='function'?'writeValueWithoutResponse':null;
+     if(!writer)throw Error('Der FTMS-Steuerkanal bietet keinen nutzbaren Schreibmodus (Write: '+String(point.properties?.write)+', WriteWithoutResponse: '+String(point.properties?.writeWithoutResponse)+').');
      // Property flags alone cannot prove that the connection works. Require
      // notification setup, then an actual FTMS response to Request Control.
      stage='Steuerantworten abonnieren';
