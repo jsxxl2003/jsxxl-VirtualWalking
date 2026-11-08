@@ -29,9 +29,9 @@ public class MainActivity extends Activity {
     private WebView web;
     private TextView label;
     private String key;
-    private String videoId = "";
-    private String state = "ready";
-    private double rate = 1.0;
+    private volatile String videoId = "";
+    private volatile String state = "ready";
+    private volatile double rate = 1.0;
     private volatile String playerFeedback = "{}";
     private volatile long feedbackAt;
     public final class PlayerFeedback {
@@ -109,15 +109,16 @@ public class MainActivity extends Activity {
             + "<meta name='referrer' content='strict-origin-when-cross-origin'>"
             + "<style>html,body,#player{width:100%;height:100%;margin:0;background:#000}</style></head>"
             + "<body><div id='player'></div><script>"
-            + "var player=null,ready=false,pendingId=null,pendingRate=1,pendingPause=false,playerError=0;"
+            + "var player=null,ready=false,pendingId=null,pendingRate=1,pendingPause=false,pendingStop=false,playerError=0;"
             + "function report(){try{if(ready)VWTvFeedback.update(JSON.stringify({playerReady:ready,playerState:player.getPlayerState(),actualRate:player.getPlaybackRate(),playerVideoId:player.getVideoData().video_id||'',playerError:playerError}));}catch(e){}}setInterval(report,1000);"
             + "function onYouTubeIframeAPIReady(){player=new YT.Player('player',{height:'100%',width:'100%',"
             + "playerVars:{playsinline:1,autoplay:1,origin:'" + PLAYER_ORIGIN + "',widget_referrer:'" + PLAYER_ORIGIN + "/'},"
-            + "events:{onReady:function(){ready=true;if(pendingId){player.loadVideoById(pendingId);player.setPlaybackRate(pendingRate);if(pendingPause)player.pauseVideo();}report();},onStateChange:report,onPlaybackRateChange:report,"
+            + "events:{onReady:function(){ready=true;if(pendingId){player.loadVideoById(pendingId);player.setPlaybackRate(pendingRate);if(pendingPause)player.pauseVideo();if(pendingStop)player.seekTo(0,true);}report();},onStateChange:report,onPlaybackRateChange:report,"
             + "onError:function(e){playerError=e.data;report();console.error('VirtualWalking YouTube error: '+e.data);}}});}"
-            + "function vwPlay(id){pendingId=id;pendingPause=false;playerError=0;if(ready)player.loadVideoById(id);}"
+            + "function vwPlay(id){pendingId=id;pendingPause=false;pendingStop=false;playerError=0;if(ready)player.loadVideoById(id);}"
             + "function vwPause(){pendingPause=true;if(ready)player.pauseVideo();}"
-            + "function vwResume(){pendingPause=false;if(ready)player.playVideo();}"
+            + "function vwResume(){pendingPause=false;pendingStop=false;if(ready)player.playVideo();}"
+            + "function vwStop(){pendingPause=true;pendingStop=true;if(ready){player.pauseVideo();player.seekTo(0,true);}}"
             + "function vwRate(v){pendingRate=v;if(ready)player.setPlaybackRate(v);}"
             + "</script><script src='https://www.youtube.com/iframe_api'></script></body></html>";
     }
@@ -151,6 +152,7 @@ public class MainActivity extends Activity {
             int code = 200;
             JSONObject result = new JSONObject();
             result.put("receiver", "VirtualWalking-TV");
+            result.put("version", "0.1.4");
             if (!key.equals(args.get("key"))) { code = 403; result.put("error", "Schlüssel ungültig"); }
             else {
                 String route = uri.getPath();
@@ -159,9 +161,10 @@ public class MainActivity extends Activity {
                     if (!id.matches("[A-Za-z0-9_-]{11}")) { code = 400; result.put("error", "Ungültige YouTube-ID"); }
                     else { videoId = id; state = "requested"; js("vwPlay(" + JSONObject.quote(id) + ")"); ui.post(() -> label.setVisibility(View.GONE)); }
                 } else if ("/pause".equals(route)) { js("vwPause()"); state = "pause-requested"; }
+                else if ("/stop".equals(route)) { js("vwStop()"); state = "stop-requested"; }
                 else if ("/resume".equals(route)) { js("vwResume()"); state = "resume-requested"; }
                 else if ("/rate".equals(route)) {
-                    try { double v = Double.parseDouble(args.getOrDefault("value", "")); if (v < 0.25 || v > 2.0) throw new IllegalArgumentException(); rate = v; js("vwRate(" + v + ")"); }
+                    try { double v = Double.parseDouble(args.getOrDefault("value", "")); if (!Double.isFinite(v) || v < 0.25 || v > 2.0) throw new IllegalArgumentException(); rate = v; js("vwRate(" + v + ")"); }
                     catch (Exception e) { code = 400; result.put("error", "Geschwindigkeit außerhalb 0.25–2.0"); }
                 } else if (!"/status".equals(route)) { code = 404; result.put("error", "Unbekannter Befehl"); }
                 result.put("videoId", videoId); result.put("state", state); result.put("requestedRate", rate);

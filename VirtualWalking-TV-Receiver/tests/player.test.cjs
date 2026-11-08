@@ -15,7 +15,7 @@ assert.match(java, /loadDataWithBaseURL\(PLAYER_ORIGIN \+ "\/"/);
 const code = page.match(/<script>([\s\S]*?)<\/script>/)[1];
 const calls = [];
 let options;
-const player = Object.fromEntries(['loadVideoById','setPlaybackRate','pauseVideo','playVideo'].map(name => [name, (...args) => calls.push([name,...args])]));
+const player = Object.fromEntries(['loadVideoById','setPlaybackRate','pauseVideo','playVideo','seekTo'].map(name => [name, (...args) => calls.push([name,...args])]));
 const context = vm.createContext({console,setInterval:()=>0,VWTvFeedback:{update(){}}, YT:{Player:function(id, config){options=config;return player;}}});
 vm.runInContext(code, context);
 context.vwPlay('abcdefghijk');
@@ -29,4 +29,6 @@ assert.deepEqual(calls, [['loadVideoById','abcdefghijk'],['setPlaybackRate',1.5]
 context.vwResume();
 context.vwPlay('12345678901');
 assert.deepEqual(calls.slice(-2), [['playVideo'],['loadVideoById','12345678901']]);
+context.vwStop();assert.deepEqual(calls.slice(-2), [['pauseVideo'],['seekTo',0,true]]);
+assert.match(java,/"\/stop"\.equals\(route\)/);
 console.log('PASS: app identity, referrer, queued load/rate/pause, ready playback');

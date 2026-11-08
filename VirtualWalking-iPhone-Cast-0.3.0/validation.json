@@ -1,18 +1,13 @@
 {
-  "version": "0.3.3",
-  "behavior_tests_passed": 22,
+  "version": "0.4.8",
+  "build": 11,
+  "receiver_version": "0.1.4",
+  "behavior_tests_passed": 41,
+  "regressions_reproduced_before_fix": 5,
   "cast_wire_golden_vectors": "passed",
   "cast_wire_fuzz_cases": 10000,
-  "cast_wire_address_and_undefined_sanitizers": "passed (LeakSanitizer disabled for container ptrace)",
-  "objective_c_grammar": "passed",
-  "plist_and_scheme": "passed",
-  "native_bluetooth_and_cast_adapters": "byte-for-byte unchanged",
-  "training_and_rate_modules": "byte-for-byte unchanged",
+  "cast_wire_address_and_undefined_sanitizers": "passed",
   "native_xcode_compile": false,
-  "native_device_protocol_test": false,
-  "live_video_stream_test": false,
-  "pending": "Codemagic rebuild of build 5; full xcodebuild.log is now retained.",
-  "build": 5,
-  "cast_dialog_api_contract": "presentCastDialog returns void; now invoked as a statement",
-  "native_build_previous_result": "0.3.3 build 4 failed in CompileC; single native source error identified by SDK API review"
+  "native_device_test": false,
+  "pending": "Build IPA in Codemagic, install current Android APK, verify complete setup on treadmill and TV."
 }

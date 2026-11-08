@@ -10,19 +10,20 @@
  let speed=null,nativeDistance=null,lastDataAt=0,lastSpeedAt=0,connectedAt=0,workout=null;
  let videoKind='none',videoName='',objectUrl=null,youtubePlayer=null,youtubeReady=false,youtubePromise=null,sourceGeneration=0;
  let wantedVideo=false,beltPaused=false,lastRateRequest=null,lastRateRequestAt=0,actualRate=null,wakeLock=null;
- let starting=false,stopping=false,startupTask=null,startupAbort=null,playbackProbe=null;
+ let starting=false,stopping=false,startupTask=null,startupAbort=null,playbackProbe=null,manualStartWaiting=false;
  let motorMayRun=false,coupled=false,stopTask=null,stopConfirmed=false;
  const tv=window.VirtualWalkingNative?new (window.VirtualWalkingCast.RoutedController||window.VirtualWalkingCast.CastController)({rpc:window.VirtualWalkingNative.rpc,onChange:()=>{renderTV();}}):null;
  function renderTV(){
   const node=$('tvStatus');if(!node||!tv)return;
+  if(tv.receiver?.selected&&tv.route===tv.receiver){node.textContent=!tv.connected?'TV: waipu.tv Box nicht erreichbar. Über „TV verbinden“ die Direktverbindung prüfen.':!tv.matches()?'Verbunden: '+tv.device+' · „Training starten“ sendet das ausgewählte YouTube-Video.':!tv.fresh()?'TV: Warte auf aktuelle Rückmeldung.':'TV: '+tv.device+' · '+(tv.playing?'Wiedergabe':'Pausiert / bereit')+' · '+rateLabel(tv.rate);return;}
   node.textContent=!tv.active?'TV: Über das Cast-Symbol oben verbinden.':!tv.connected?'TV: Nicht verbunden. Bitte über das Cast-Symbol erneut verbinden.':!tv.matches()?'Verbunden: '+tv.device+' · Bitte dasselbe YouTube-Video am TV öffnen.':!tv.fresh()?'TV: Warte auf aktuelle Rückmeldung.':'TV: '+tv.device+' · '+(tv.playing?'Wiedergabe':'Pausiert / bereit')+' · '+rateLabel(tv.rate);
  }
  window.addEventListener('vw-native',event=>{
   const message=event.detail;
   if(message.type==='tv.receiver.connected'){try{youtubePlayer?.pauseVideo();$('video').pause();}catch{}tv?.connectReceiver?.();renderTV();}
   else if(message.type==='cast.status'){
-   const wasActive=tv?.active;tv?.receive(message);
-   if((starting||workout?.running)&&(wasActive||tv?.active)&&(!tv?.active||!tv.matches()||wasActive!==tv.active)){
+   const wasActive=tv?.active,applies=tv?.receive(message)!==false;
+   if(applies&&(starting||workout?.running)&&(wasActive||tv?.active)&&(!tv?.active||!tv.matches()||wasActive!==tv.active)){
     startupAbort?.abort();pause('TV meldet kein passendes Laufvideo mehr. Laufband am Gerät anhalten.');
    }
   }else if(message.type==='app.suspend'){
@@ -35,6 +36,7 @@
  function settings(){const reference=Number($('referenceSpeed').value);return {sync:$('syncEnabled').checked,pauseAtZero:$('pauseAtZero').checked,reference:Number.isFinite(reference)&&reference>=1&&reference<=15?reference:4};}
  function fresh(){return bt.connected&&lastDataAt>0&&performance.now()-lastDataAt<5000;}
  function freshSpeed(){return fresh()&&lastSpeedAt>0&&performance.now()-lastSpeedAt<5000;}
+ function manualBeltOnly(){return !motorMayRun&&(!bt.startBlockedReason||bt.uncertainCommand===0)&&(!bt.canControl||bt.controlDenied||bt.uncertainCommand===0);}
  function videoPlaying(){if(tv?.active)return tv.playing;try{return videoKind==='youtube'?youtubeReady&&youtubePlayer?.getPlayerState()===1:videoKind!=='none'&&!$('video').paused&&!$('video').ended;}catch{return false;}}
  function playVideo(){
   if(videoKind==='none')return;
@@ -65,12 +67,12 @@
   text('start',starting?'Startet …':stopping?'Wird angehalten …':workout?'▶ Fortsetzen':'▶ Training starten');
   $('pause').disabled=stopping||(!starting&&!workout?.running&&!motorMayRun);$('finish').disabled=stopping||(!starting&&!workout&&!motorMayRun);
   for(const id of ['fileInput','showLink','pasteLink','videoUrl'])$(id).disabled=starting||stopping;
-  text('trainingStatus',starting?'Gemeinsamer Start':stopping?'Wird angehalten':workout?(workout.running?'Aufzeichnung läuft':'Pausiert'):'Bereit');
-  text('controlMode',bt.canControl?'FTMS · Steuerkanal bereit':'FTMS · Daten verbunden');
+  text('trainingStatus',starting?(manualStartWaiting?'Laufband am Gerät starten':'Gemeinsamer Start'):stopping?'Wird angehalten':workout?(workout.running?'Aufzeichnung läuft':'Pausiert'):'Bereit');
+  text('controlMode',bt.canControl&&!manualBeltOnly()?'FTMS · Steuerkanal bereit':'FTMS · Daten verbunden');
   if(!bt.connected)text('controlMode','FTMS · Nicht verbunden');
-  text('trainingHint',!bt.connected?'Verbinde das Laufband und wähle ein Video. „Training starten“ prüft den gemeinsamen Start.':bt.canControl?'„Training starten“ fordert den gemeinsamen Start von Laufband und Video an. Das Starttempo bestimmt das Laufband. Nach einem App-Start halten „Pause“ und „Beenden“ auch das Band an.':'Unsere App konnte den Steuerkanal noch nicht öffnen. Trenne die Laufband-Verbindung in Wellfit und verbinde das Laufband hier erneut. Für Video und Aufzeichnung kannst du das Band auch am Gerät starten.');
-  text('controlIssue',bt.controlIssue||'');$('controlIssue').hidden=!bt.connected||bt.canControl||!bt.controlIssue;
-  $('controlHint').hidden=!bt.canControl;
+  text('trainingHint',!bt.connected?'Verbinde das Laufband und wähle ein Video. „Training starten“ prüft den gemeinsamen Start.':manualBeltOnly()?'Laufband am Gerät starten und anhalten. „Training starten“, „Pause“ und „Beenden“ steuern das Video und die Aufzeichnung.':'„Training starten“ fordert den gemeinsamen Start von Laufband und Video an. Das Starttempo bestimmt das Laufband. Nach einem App-Start halten „Pause“ und „Beenden“ auch das Band an.');
+  text('controlIssue',bt.controlIssue||'');$('controlIssue').hidden=!bt.connected||!bt.controlIssue;
+  $('controlHint').hidden=!bt.canControl||manualBeltOnly();
  }
  function unit(value){const small=document.createElement('small');small.textContent=value;return small;}
  function beginRecording(play=true){
@@ -110,7 +112,7 @@
   return new Promise((resolve,reject)=>{
    const clean=()=>{clearTimeout(timer);clearInterval(poll);signal.removeEventListener('abort',abort);};
    const abort=()=>{clean();reject(Error('Start abgebrochen.'));};
-   const timer=setTimeout(()=>{clean();reject(Error('Der Start wurde bestätigt, aber es wurden keine aktuellen Bewegungsdaten gemeldet.'));},20000);
+   const timer=setTimeout(()=>{clean();reject(Error(manualStartWaiting?'Noch keine Bandbewegung gemeldet. Laufband am Gerät starten und „Training starten“ erneut antippen.':'Der Start wurde bestätigt, aber es wurden keine aktuellen Bewegungsdaten gemeldet.'));},20000);
    const poll=setInterval(()=>{if(freshSpeed()&&Number.isFinite(speed)&&speed>=.1){clean();resolve();}},100);
    signal.addEventListener('abort',abort,{once:true});if(signal.aborted)abort();
   });
@@ -123,18 +125,18 @@
  function begin(){
   if(starting||stopping||workout?.running)return;
   if(!bt.connected){announce('Bitte zuerst das Laufband verbinden.',true);return;}
-  if(bt.startBlockedReason&&!(bt.uncertainCommand===0&&freshSpeed()&&Number.isFinite(speed)&&speed>=.1)){announce(bt.startBlockedReason,true);return;}
+  if(bt.startBlockedReason&&!manualBeltOnly()){announce(bt.startBlockedReason,true);return;}
   if(!freshSpeed()||!Number.isFinite(speed)){announce('Bitte auf aktuelle Geschwindigkeitsdaten des Laufbands warten.',true);return;}
-  if(speed<.1&&!bt.canControl){announce('App-Start noch nicht möglich: '+(bt.controlIssue||'Der Steuerkanal konnte nicht geöffnet werden.')+' Bitte Wellfit trennen und Bluetooth hier neu verbinden. Alternativ am Gerät starten, dann „Training starten“ drücken.',true);return;}
   // Unlock iOS YouTube playback synchronously in the user's tap gesture, before awaiting BLE operations.
   // The joint-start state machine will pause the preview before requesting belt motion.
   if(videoKind==='youtube' && youtubeReady && !tv?.active) { try { youtubePlayer.playVideo(); } catch {} }
-  starting=true;const controller=new AbortController();startupAbort=controller;renderWorkout();
+  starting=true;manualStartWaiting=false;const controller=new AbortController();startupAbort=controller;renderWorkout();
   announce('Video wird vorbereitet. Danach wird der Laufband-Start angefordert.');
   startupTask=(async()=>{
    try{
     await window.VirtualWalkingStart.jointStart({signal:controller.signal,
      prepareVideo:signal=>requestPlayback(signal,true),isMoving:()=>freshSpeed()&&Number.isFinite(speed)&&speed>=.1,
+     manualStart:manualBeltOnly,onManualStart:()=>{manualStartWaiting=true;announce('Video bereit. Bitte das Laufband am Gerät starten. Video und Aufzeichnung beginnen mit der gemeldeten Bandbewegung.');renderWorkout();},
      allowStart:()=>freshSpeed()&&Number.isFinite(speed)&&speed<.1,
      driver:bt,onSent:()=>{motorMayRun=true;coupled=true;stopConfirmed=false;announce('Laufband-Start gesendet. Warte auf Bestätigung und Bandbewegung …');},
      waitForMotion,playVideo:signal=>requestPlayback(signal,false),beginRecording:()=>beginRecording(false)});
@@ -142,7 +144,7 @@
     pauseVideo();let hint='';
     if(motorMayRun){try{await stopMotor();hint=' Der Stoppbefehl wurde vom Laufband bestätigt.';}catch{hint=' Bitte das Laufband jetzt am Gerät anhalten.';}}
     announce((controller.signal.aborted?'Gemeinsamer Start abgebrochen.':'Gemeinsamer Start nicht möglich: '+C.errorText(error))+hint,true);
-   }finally{starting=false;startupAbort=null;startupTask=null;renderWorkout();syncVideo();}
+   }finally{starting=false;manualStartWaiting=false;startupAbort=null;startupTask=null;renderWorkout();syncVideo();}
   })();
  }
  function pause(reason='Training und Video pausiert.'){
@@ -165,7 +167,7 @@
  async function finishFromButton(){
   if(stopping)return;stopping=true;const task=startupTask;startupAbort?.abort();pause();renderWorkout();let failed=false;
   try{if(task)await task;if(motorMayRun)await stopMotor();}catch{failed=true;}
-  finishRecording();if(failed)announce('Bitte das Laufband am Gerät anhalten – der Stopp wurde nicht bestätigt.',true);
+  if(workout)finishRecording();else stopVideo();if(failed)announce('Bitte das Laufband am Gerät anhalten – der Stopp wurde nicht bestätigt.',true);
   else if(!workout)announce('Training beendet.'+(coupled?(stopConfirmed?' Der Laufband-Stopp wurde bestätigt.':' Laufband am Gerät prüfen.'):''));
   stopping=false;renderWorkout();
  }
@@ -319,7 +321,7 @@
   if(tv?.active){
    renderTV();const opts=settings();
    if(starting){syncLabel('Gemeinsamer Start am TV','Warte auf TV-Bestätigung und Bandbewegung.');return;}
-   if(!tv.matches()){syncLabel('TV-Video noch nicht zugeordnet','Dasselbe YouTube-Video zuerst am Fernseher öffnen.');return;}
+   if(!tv.matches()){syncLabel('TV-Video noch nicht zugeordnet',tv.receiver?.selected?'„Training starten“ sendet das ausgewählte Video an die waipu.tv Box.':'Dasselbe YouTube-Video zuerst am Fernseher öffnen.');return;}
    if(!tv.fresh()){if(wantedVideo||tv.playing){beltPaused=true;pauseVideo(true);}syncLabel('Keine aktuelle TV-Rückmeldung','Laufband am Gerät anhalten.',null);return;}
    if(!opts.sync){syncLabel('TV-Tempoanpassung aus','Videotempo wird nicht automatisch verändert.',tv.rate);return;}
    if(!freshSpeed()||!Number.isFinite(speed)){if(wantedVideo||tv.playing){beltPaused=true;pauseVideo(true);}syncLabel('Warte auf Laufbanddaten','TV-Wiedergabe pausiert.',tv.rate);return;}

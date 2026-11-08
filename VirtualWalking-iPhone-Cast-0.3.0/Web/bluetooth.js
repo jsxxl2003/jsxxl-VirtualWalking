@@ -2,7 +2,7 @@
 (function(root){
  const core=typeof module!=='undefined'&&module.exports?require('./core.js'):root.VirtualWalkingCore;
  class FTMSClient{
-  constructor({bluetooth,onConnection=()=>{},onData=()=>{},onStatus=()=>{},onError=()=>{},commandTimeout=15000}){this.bluetooth=bluetooth;this.onConnection=onConnection;this.onData=onData;this.onStatus=onStatus;this.onError=onError;this.device=null;this.listeners=[];this.pending=false;this.control=null;this.controlWriter=null;this.controlIssue='';this.controlGranted=false;this.uncertain=false;this.uncertainCommand=null;this.lastControlError='';this.operation=null;this.commandTimeout=commandTimeout;this.starting=false;}
+  constructor({bluetooth,onConnection=()=>{},onData=()=>{},onStatus=()=>{},onError=()=>{},commandTimeout=15000}){this.bluetooth=bluetooth;this.onConnection=onConnection;this.onData=onData;this.onStatus=onStatus;this.onError=onError;this.device=null;this.listeners=[];this.pending=false;this.control=null;this.controlWriter=null;this.controlIssue='';this.controlGranted=false;this.controlDenied=false;this.uncertain=false;this.uncertainCommand=null;this.lastControlError='';this.operation=null;this.commandTimeout=commandTimeout;this.starting=false;}
   get connected(){return !!this.device?.gatt?.connected;}
   get canControl(){return this.connected&&!!this.control;}
   get startBlockedReason(){
@@ -81,8 +81,8 @@
     },settle:()=>{
      if(this.operation!==op||this.device!==device)return;
      if(!op.written||op.response===null)return;
-     if(op.response===1){if(code===0)this.controlGranted=true;op.finish();}
-     else{if(op.response===5)this.controlGranted=false;const messages={2:'Das Laufband unterstützt diesen Start-/Stoppbefehl nicht.',3:'Das Laufband hat den Befehl als ungültig abgelehnt.',4:'Das Laufband hat den Befehl abgelehnt. Zustand und Sicherheitsschlüssel am Gerät prüfen.',5:'Das Laufband erlaubt die Steuerung gerade nicht. Andere Trainings-App trennen und am Gerät prüfen.'};op.finish(Error(messages[op.response]||'Unbekannte Laufband-Antwort '+op.response));}
+     if(op.response===1){if(code===0){this.controlGranted=true;this.controlDenied=false;}op.finish();}
+     else{if(op.response===5)this.controlGranted=false;const messages={2:'Das Laufband unterstützt diesen Start-/Stoppbefehl nicht.',3:'Das Laufband hat den Befehl als ungültig abgelehnt.',4:'Das Laufband hat den Befehl abgelehnt. Zustand und Sicherheitsschlüssel am Gerät prüfen.',5:'Das Laufband erlaubt die Steuerung gerade nicht. Andere Trainings-App trennen und am Gerät prüfen.'};const message=messages[op.response]||'Unbekannte Laufband-Antwort '+op.response;if(code===0){this.controlDenied=true;this.lastControlError=label+': '+message;this.controlIssue=this.lastControlError;}op.finish(Error(message));}
     }};
     const fail=error=>{
      if(this.operation!==op||this.device!==device)return;
@@ -113,7 +113,7 @@
   disconnect(){
    const device=this.device;this.device=null;
    this.operation?.finish(Error('Bluetooth-Verbindung unterbrochen. Laufband am Gerät prüfen.'));
-   this.control=null;this.controlWriter=null;this.controlIssue='';this.controlGranted=false;this.uncertain=false;this.uncertainCommand=null;this.lastControlError='';
+   this.control=null;this.controlWriter=null;this.controlIssue='';this.controlGranted=false;this.controlDenied=false;this.uncertain=false;this.uncertainCommand=null;this.lastControlError='';
    for(const [target,event,handler] of this.listeners)target.removeEventListener(event,handler);this.listeners=[];
    if(device?.gatt?.connected)device.gatt.disconnect();
    if(device)this.onConnection({connected:false});

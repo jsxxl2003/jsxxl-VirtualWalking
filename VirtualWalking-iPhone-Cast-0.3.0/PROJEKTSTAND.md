@@ -1,56 +1,62 @@
-# VirtualWalking iPhone 0.3.3
+# VirtualWalking – Arbeitsstand 8. November 2026
 
-Aktuelles Ziel: Direkte Videoübertragung aus VirtualWalking an das bereits auf
-dem Philips 55PUS8079/12 laufende AirServer. Zuerst die tatsächlich erreichbaren
-Empfangsdienste feststellen, danach den passenden iPhone-Sender entwickeln.
+## Aktueller Stand
 
-## In diesem Stand umgesetzt
+- iPhone-App: **0.4.8, Build 11**; Android-TV-Empfänger: **0.1.4, Build 5**.
+- Aktueller TV-Weg: eigener VirtualWalking-Empfänger auf der waipu.tv Box,
+  HTTP-Port 8765, derzeit 192.168.0.32. Das iPhone bleibt die Steuerzentrale.
+- Die zuvor getrennten Arbeiten vom Entwicklungszweig
+  `fix/tv-player-identity-0.1.1` sind Grundlage dieses gemeinsamen Stands.
 
-- „TV verbinden“ bietet „AirServer prüfen“ und die bestehende Cast-Geräteauswahl.
-- Die Prüfung läuft auf dem iPhone: Bonjour für AirPlay, RAOP, Google Cast und
-  DIAL, gezielte SSDP-Unicast-Abfrage und lesende Dienstabfragen an die TV-IP.
-- Eine eigene Cast-Verbindung liest nur Status; sie startet keine Receiver-App,
-  lädt kein Video und sendet keine Wiedergabebefehle. Medienadressen und private
-  Dateinamen werden nicht in den teilbaren Bericht aufgenommen.
-- Das zuletzt ausgewählte YouTube-Video wird mit Titel gespeichert. Beim
-  nächsten Öffnen erscheint sein Link im bestehenden Eingabefeld; „Öffnen“ lädt
-  es erneut. Es startet dadurch kein Training und keine Wiedergabe.
-- Laufbandsteuerung, FTMS-Module und Geschwindigkeitsregelung sind erhalten.
+## Behobene Fehler
 
-## Offene Nachweise
+„Training starten“ war nach einer fehlgeschlagenen FTMS-Steuerfreigabe blockiert.
+Die App kann jetzt auf einen manuellen Bandstart warten. Sobald aktuelle
+Bewegungsdaten vorliegen, beginnen Video und Aufzeichnung. Pause und Beenden
+bleiben während dieses Wartens bedienbar. Ohne Steuerfreigabe sendet dieser
+Ablauf keine Motorbefehle. Ein unbestätigter Motor-Start oder -Stopp wird
+weiterhin gesperrt und niemals als bloß fehlende Steuerfreigabe behandelt.
 
-Auf dem echten iPhone die Prüfung mit geöffnetem AirServer am TV ausführen und
-„Ergebnis teilen“ verwenden. Ein Bonjour-Eintrag bestätigt lediglich eine
-Dienstankündigung. Ein Cast-Status, ein gültiges AirPlay-Info-Dokument oder eine
-UPnP-Gerätebeschreibung mit AVTransport liefern jeweils stärkere Nachweise.
-Keine Antwort schließt ein Protokoll nicht aus. RAOP allein belegt nur Audio;
-DIAL allein belegt App-Startfunktionen. Livevideo-Unterstützung ist noch nicht
-getestet. Aktive HTTP-/Cast-Abfragen verwenden lokale IPv4-Adressen; zusätzlich
-aufgelöste IPv6-Adressen werden im Bericht erfasst.
+Die Trainingsknöpfe steuern den direkten HTTP-Empfänger. Alte oder parallel
+bestehende Google-Cast-Meldungen können die gewählte waipu-Verbindung nicht mehr
+überschreiben. Bestätigungen kommen aus dem tatsächlichen YouTube-Player;
+eine erfolgreiche HTTP-Antwort allein bestätigt keine Wiedergabe. Bei einem
+veralteten TV-Empfänger wird die fehlende Player-Rückmeldung verständlich gemeldet.
 
-SSDP wird ohne die bei Sideloadly nicht voraussetzbare Apple-Multicastfreigabe
-gezielt per Unicast geprüft. Geräte, die darauf nicht antworten, bleiben offen.
+Beenden pausiert das TV-Video und setzt seine Position zurück. Fortsetzen lädt
+bereits geladene Videos nicht erneut vom Anfang. Nach einem Videowechsel bleiben
+keine alten Tempo-Fehler hängen. Verspätete Rückmeldungen bestätigen keinen
+bereits abgebrochenen Start.
 
-## DevView weiterverfolgen
+Das zuletzt ausgewählte YouTube-Video bleibt gespeichert und wird beim nächsten
+Öffnen wieder angeboten. Die TV-App speichert ihren Verbindungsschlüssel über
+normale Neustarts hinweg. Bestehende Gestaltung und Tempo-Berechnung bleiben
+bestehen; es gibt keine neuen Bedienknöpfe im Trainingsbildschirm.
 
-DevView bleibt als zusätzliche Entwicklungsmöglichkeit für einen eigenen
-Titan-OS-Empfänger vorgemerkt. Der private Partnerzugang wurde angefragt; seine
-Freigabe steht noch aus. Keine erneute Kontoanfrage und keine TV-Installation
-ohne diesen Zugang. Die aktuelle Arbeit am iPhone-Sender geht unabhängig davon
-weiter.
+## Prüfergebnis und Grenzen
+
+Die automatisierten Verhaltenstests einschließlich echter FTMS-Antwortverarbeitung
+und eingebettetem TV-Player-Skript bestehen. Der Cast-Protobuf-Parser ist mit
+unabhängigen Testdaten, Grenzfällen und 10.000 Zufallsfällen geprüft.
+Die komplette iPhone-Kompilierung erfolgt in Codemagic. Der echte Test mit
+Laufband, iPhone und waipu-Box muss den gemeinsamen Stand noch bestätigen.
+
+## Bauen und installieren
+
+1. Den aktuellen TV-Empfänger installieren (APK 0.1.4). GitHub Actions baut
+   Änderungen am TV-Empfänger auf `main` automatisch; alternativ Workflow
+   „VirtualWalking Android TV APK“ manuell starten.
+2. In Codemagic „VirtualWalking iPhone“ von `main` bauen und die IPA wie bisher
+   mit Sideloadly installieren.
+3. TV-Empfänger öffnen, Direktverbindung am iPhone herstellen, YouTube-Video
+   öffnen und „Training starten“ antippen. Bei fehlender Steuerfreigabe das
+   Laufband am Gerät starten; Video und Aufzeichnung warten auf die Bewegung.
+
+## DevView
+
+DevView bleibt als zusätzliche Option für einen eigenen Titan-OS-Empfänger
+vorgemerkt. Der private Partnerzugang wurde angefragt; eine Freigabe ist im
+aktuellen Arbeitsstand nicht dokumentiert. Der funktionierende Weg über die
+waipu-Box wird dadurch nicht aufgehalten.
 
 Offizielle Anleitung: https://docs.titanos.tv/devviewinstall
-
-## Build und Installation
-
-In Codemagic den Workflow „VirtualWalking iPhone“ vom aktuellen main ausführen.
-Das Projektverzeichnis behält wegen der vorhandenen Buildpfade seinen Namen
-VirtualWalking-iPhone-Cast-0.3.0. App-Version: 0.3.3, Build: 5.
-Das erzeugte VirtualWalking-iPhone.ipa wie bisher mit Sideloadly installieren.
-Dieser Quellstand enthält noch keine neue direkte Videoübertragung.
-
-## Build-Korrektur 0.3.3 / 5
-
-Der Cast-Dialog wird als void-Methode aufgerufen. Die unzulässige Auswertung
-seines Rückgabewerts wurde entfernt. Codemagic speichert xcodebuild.log künftig
-als Build-Artefakt. Der native Neubuild muss den Fix noch bestätigen.

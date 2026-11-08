@@ -1,6 +1,6 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const vm=require('node:vm');const fs=require('node:fs');
 const {FTMSClient}=require('../Web/bluetooth.js');const C=require('../Web/core.js');
-function harness(){
+function harness({controlResult=1,dropControlResponse=false}={}){
  const root=new EventTarget(),writes=[],notifications=[];let generation=1;
  root.window=root;root.navigator={};root.DataView=DataView;root.Uint8Array=Uint8Array;root.ArrayBuffer=ArrayBuffer;root.EventTarget=EventTarget;root.Event=Event;root.CustomEvent=CustomEvent;root.setTimeout=setTimeout;root.clearTimeout=clearTimeout;
  root.webkit={messageHandlers:{virtualwalking:{postMessage:message=>queueMicrotask(()=>{
@@ -11,7 +11,7 @@ function harness(){
   if(message.method==='ble.write'){
    writes.push(Array.from(message.params.bytes));
    // A control indication can arrive before the native write acknowledgement.
-   root.__vwNativeEvent({type:'ble.value',deviceId:'device',generation:message.params.generation,uuid:C.CONTROL_POINT,bytes:[0x80,message.params.bytes[0],1]});
+   if(!(dropControlResponse&&message.params.bytes[0]===0))root.__vwNativeEvent({type:'ble.value',deviceId:'device',generation:message.params.generation,uuid:C.CONTROL_POINT,bytes:[0x80,message.params.bytes[0],message.params.bytes[0]===0?controlResult:1]});
   }
   root.__vwNativeReceive({id:message.id,ok:true,result});
  })}}};
@@ -29,4 +29,13 @@ test('late notification from an earlier native connection cannot change new tele
  await client.connect();client.disconnect();await client.connect();
  h.root.__vwNativeEvent({type:'ble.value',deviceId:'device',generation:1,uuid:C.TREADMILL_DATA,bytes:[0,0,0x58,2]});assert.deepEqual(speeds,[]);
  h.root.__vwNativeEvent({type:'ble.value',deviceId:'device',generation:2,uuid:C.TREADMILL_DATA,bytes:[0,0,0x58,2]});assert.deepEqual(speeds,[6]);client.disconnect();
+});
+test('denied FTMS control never sends Start and leaves telemetry connected',async()=>{
+ const h=harness({controlResult:5}),client=new FTMSClient({bluetooth:h.root.navigator.bluetooth});await client.connect();
+ await assert.rejects(client.start(),/erlaubt die Steuerung/);assert.equal(client.controlDenied,true);assert.equal(client.connected,true);assert.equal(client.controlGranted,false);
+ assert.deepEqual(h.writes,[[0]]);client.disconnect();
+});
+test('timed out Request Control is identified separately from an unconfirmed motor start',async()=>{
+ const h=harness({dropControlResponse:true}),client=new FTMSClient({bluetooth:h.root.navigator.bluetooth,commandTimeout:10});await client.connect();
+ await assert.rejects(client.start(),/Keine Laufband-Bestätigung/);assert.equal(client.uncertainCommand,0);assert.equal(client.controlGranted,false);assert.deepEqual(h.writes,[[0]]);client.disconnect();
 });

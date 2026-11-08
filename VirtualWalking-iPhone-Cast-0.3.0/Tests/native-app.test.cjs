@@ -40,3 +40,25 @@ test('unconfirmed motor start remains blocked even if telemetry reports motion',
  a.sample(2);a.click('start');await flush();assert.equal(a.calls.includes('motor-start'),false);
  assert.equal(a.el('trainingStatus').textContent,'Bereit');
 });
+test('a denied control request keeps the start ready for a manual belt start and leaves pause responsive',async t=>{
+ const a=app(t,{nativeReceiver:true,failedControl:true});a.click('connect');await flush();a.loadYoutube();await flush();a.sample(0);a.click('start');await flush();
+ assert.match(a.el('message').textContent,/am Gerät starten/);assert.equal(a.el('pause').disabled,false);assert.equal(a.el('finish').disabled,false);
+ assert.equal(a.calls.includes('motor-start'),false);a.sample(2);await flush();
+ assert.equal(a.el('trainingStatus').textContent,'Aufzeichnung läuft');assert.equal(a.calls.filter(c=>c==='request-control').length,1);
+ a.click('pause');await flush();assert.equal(a.el('trainingStatus').textContent,'Pausiert');assert.equal(a.calls.includes('motor-pause'),false);
+ a.click('finish');await flush();assert.equal(a.calls.includes('tv.receiver.stop'),true);
+});
+test('a connected legacy Cast status cannot divert training away from the direct receiver',async t=>{
+ const a=app(t,{nativeReceiver:true,nativeCast:true});a.click('connect');await flush();a.loadYoutube();await flush();a.sendTV();a.sample(2);a.click('start');await flush();
+ assert.equal(a.calls.includes('tv.receiver.play'),true);assert.equal(a.calls.includes('tv.receiver.resume'),true);assert.equal(a.calls.includes('cast.play'),false);
+});
+test('pause cancels waiting for a manual belt start without sending a motor command',async t=>{
+ const a=app(t,{nativeReceiver:true,failedControl:true});a.click('connect');await flush();a.loadYoutube();await flush();a.sample(0);a.click('start');await flush();
+ a.click('pause');await flush();assert.equal(a.el('trainingStatus').textContent,'Bereit');assert.equal(a.calls.includes('motor-start'),false);assert.equal(a.calls.includes('motor-pause'),false);
+ assert.equal(a.calls.includes('tv.receiver.pause'),true);
+});
+test('a failed motor-start command never falls back to recording without a confirmed stop',async t=>{
+ const a=app(t,{nativeReceiver:true,failedStart:true});a.click('connect');await flush();a.loadYoutube();await flush();a.sample(0);a.click('start');await flush();
+ assert.equal(a.calls.filter(c=>c==='motor-start').length,1);assert.equal(a.calls.includes('motor-stop'),true);assert.equal(a.el('trainingStatus').textContent,'Bereit');
+ assert.equal(a.calls.includes('tv.receiver.resume'),false);
+});

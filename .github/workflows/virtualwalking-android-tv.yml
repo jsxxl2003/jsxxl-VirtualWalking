@@ -1,6 +1,11 @@
 name: VirtualWalking Android TV APK
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'VirtualWalking-TV-Receiver/**'
+      - '.github/workflows/virtualwalking-android-tv.yml'
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -8,6 +13,11 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check training and TV player behavior
+        run: node --test VirtualWalking-iPhone-Cast-0.3.0/Tests/*.test.cjs VirtualWalking-TV-Receiver/tests/*.test.cjs
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

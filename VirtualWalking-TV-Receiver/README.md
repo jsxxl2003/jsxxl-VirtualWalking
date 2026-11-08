@@ -1,11 +1,34 @@
-# VirtualWalking TV-Empfänger (Android TV)
-Android-TV-Empfänger für die waipu.tv Box. Die iPhone-App bleibt die Steuerzentrale.
+# VirtualWalking TV-Empfänger 0.1.4
 
-## Erste Version
-Die Box zeigt ihre LAN-IP und einen zufälligen Sitzungsschlüssel. Der lokale HTTP-Empfänger lauscht auf Port 8765.
-Befehle (nur im Heimnetz mit Schlüssel): GET /status?key=..., GET /play?key=...&id=YOUTUBE_ID, GET /pause?key=..., GET /resume?key=..., GET /rate?key=...&value=1.0.
-YouTube wird über die offizielle IFrame-Einbettung in einer Android-WebView geöffnet. Die tatsächliche Wiedergabe und Geschwindigkeitsänderung müssen auf der Box getestet werden; YouTube kann Einbettung oder Autoplay blockieren.
+Android-TV-Empfänger für die waipu.tv Box. Das iPhone steuert Video, Pause,
+Fortsetzen, Beenden und Videotempo direkt über das Heimnetz. Das Video bleibt
+in VirtualWalking; die externe YouTube-TV-App wird nicht gestartet.
+
+Der Empfänger zeigt seine IPv4-Adresse und einen 24-stelligen Verbindungsschlüssel.
+Er lauscht auf Port 8765. Der Schlüssel wird bei normalen App-Neustarts beibehalten.
+
+## Mit der iPhone-App verwenden
+
+Mit iPhone-Version 0.4.8 verwenden. Über „TV verbinden“ die Direktverbindung
+herstellen. Ein YouTube-Video öffnen und die vorhandenen Trainingsknöpfe benutzen.
+Eine Steuerfreigabe für den Laufbandmotor ist keine Voraussetzung für manuelles
+Laufen mit Video und Aufzeichnung. Das Band in diesem Fall am Gerät bedienen.
 
 ## Build
-GitHub Actions > VirtualWalking Android TV APK > Run workflow. Das APK liegt anschließend unter Artifacts.
-Diese Android-App ist unabhängig vom bisherigen iPhone-Codemagic-Workflow. Für die spätere iPhone-Anbindung wird ein separater iOS-Build benötigt.
+
+GitHub Actions baut den Empfänger bei Änderungen auf `main` automatisch.
+Der Workflow „VirtualWalking Android TV APK“ kann auch manuell gestartet werden.
+Das APK liegt unter „Artifacts“ im erfolgreichen Workflow-Lauf.
+
+## Lokale Schnittstelle
+
+Alle Aufrufe benötigen den Schlüssel: `/status`, `/play&id=YOUTUBE_ID`, `/pause`,
+`/resume`, `/stop`, `/rate&value=1.0`, jeweils als GET mit `?key=...` und den
+weiteren Parametern. HTTP-Erfolg bestätigt die Annahme des Auftrags.
+`playerReady`, `playerState`, `playerVideoId`, `actualRate`, `playerError` und
+`feedbackAgeMs` beschreiben die tatsächliche Rückmeldung aus dem eingebetteten
+YouTube-Player. `/stop` pausiert und setzt die Videoposition zurück.
+
+Die YouTube-App-Kennung und das Puffern von Befehlen vor Player-Bereitschaft
+sind enthalten. Die echte Wiedergabe und Temposynchronisierung müssen auf der
+waipu-Box mit dem aktuellen iPhone-Build getestet werden.
