@@ -3,6 +3,51 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {ReceiverController,RoutedController}=require('../Web/cast.js');
 const id='M7lc1UVf-VE';
+test('background polling and playback confirmation share one ordered TV request stream',async()=>{
+ let active=0,maximum=0,state=2;const calls=[];
+ const c=new ReceiverController({rpc:async method=>{
+  calls.push(method);maximum=Math.max(maximum,++active);
+  await new Promise(r=>setTimeout(r,5));
+  if(method==='tv.receiver.play'||method==='tv.receiver.resume')state=1;
+  if(method==='tv.receiver.pause')state=2;
+  active--;return{playerReady:true,playerState:state,actualRate:1,playerVideoId:id,feedbackAgeMs:0};
+ }});c.selected=true;c.setSource('youtube',id);
+ await Promise.all([c.poll(),c.prepare()]);assert.equal(maximum,1);
+ assert.equal(c.playing,false);assert.equal(c.fresh(),true);
+ assert.ok(calls.includes('tv.receiver.pause'));
+});
+test('repeated pause requests are coalesced while an earlier TV request is pending',async()=>{
+ let release;const gate=new Promise(r=>release=r),calls=[];
+ const c=new ReceiverController({rpc:async method=>{calls.push(method);if(method==='tv.receiver.status')await gate;return{playerReady:true,playerState:2,actualRate:1,playerVideoId:id,feedbackAgeMs:0};}});
+ c.selected=true;c.setSource('youtube',id);const polling=c.poll();await new Promise(r=>setImmediate(r));
+ const pauses=[c.pause(),c.pause(),c.pause()];release();await polling;await Promise.all(pauses);
+ assert.equal(calls.filter(x=>x==='tv.receiver.pause').length,1);
+});
+test('a pause cancels a queued resume before it can be sent to the TV',async()=>{
+ let release;const gate=new Promise(r=>release=r),calls=[];
+ const c=new ReceiverController({rpc:async method=>{calls.push(method);if(method==='tv.receiver.status')await gate;return{playerReady:true,playerState:2,actualRate:1,playerVideoId:id,feedbackAgeMs:0};}});
+ c.selected=true;c.setSource('youtube',id);const polling=c.poll();await new Promise(r=>setImmediate(r));
+ const playing=c.play();const failure=assert.rejects(playing,/abgebrochen/);const paused=c.pause();release();
+ await polling;await failure;await paused;assert.equal(calls.includes('tv.receiver.resume'),false);
+});
+test('a failed HTTP command reports which TV operation failed and does not poison the pause queue',async()=>{
+ const c=new ReceiverController({rpc:async method=>{if(method==='tv.receiver.play')throw Error('Zeitüberschreitung bei der Anforderung.');return{playerReady:true,playerState:2,actualRate:1,playerVideoId:id,feedbackAgeMs:0};}});
+ c.selected=true;c.setSource('youtube',id);
+ await assert.rejects(c.prepare(),/TV-Video laden.*Zeitüberschreitung/);await c.pause();
+});
+test('a second pause cancels a resume queued after the first pause',async()=>{
+ let release;const gate=new Promise(r=>release=r),calls=[];
+ const c=new ReceiverController({rpc:async method=>{calls.push(method);if(method==='tv.receiver.status')await gate;return{playerReady:true,playerState:2,actualRate:1,playerVideoId:id,feedbackAgeMs:0};}});
+ c.selected=true;c.setSource('youtube',id);const polling=c.poll();await new Promise(r=>setImmediate(r));
+ const first=c.pause().catch(()=>{}),playing=c.play(),failure=assert.rejects(playing,/abgebrochen/),second=c.pause();
+ release();await polling;await first;await failure;await second;
+ assert.equal(calls.includes('tv.receiver.resume'),false);
+});
+test('backgrounding still allows the TV pause while preventing new playback requests',async()=>{
+ const {controller:c,calls}=fixture();c.suspend();await c.pause();
+ assert.equal(calls.at(-1)[0],'tv.receiver.pause');await assert.rejects(c.play(),/abgebrochen/);
+ assert.equal(calls.some(x=>x[0]==='tv.receiver.resume'),false);
+});
 test('changing the saved TV address invalidates a delayed response from the previous destination',async()=>{
  let resolve;const pending=new Promise(r=>resolve=r);
  const routed=new RoutedController({rpc:()=>pending});routed.setSource('youtube',id);
@@ -58,9 +103,9 @@ test('an explicitly selected direct receiver is not replaced by a connected lega
 test('a response arriving after pause cannot confirm an obsolete play operation',async()=>{
  let resolveStatus;const pending=new Promise(resolve=>{resolveStatus=resolve;});
  const c=new ReceiverController({rpc:async method=>method==='tv.receiver.status'?pending:{}});c.selected=true;c.setSource('youtube',id);
- const playing=c.play();await new Promise(resolve=>setImmediate(resolve));await c.pause();
+ const playing=c.play();const failure=assert.rejects(playing,/abgebrochen/);await new Promise(resolve=>setImmediate(resolve));const paused=c.pause();
  resolveStatus({playerReady:true,playerState:1,actualRate:1,playerVideoId:id,feedbackAgeMs:0});
- await assert.rejects(playing,/abgebrochen/);assert.equal(c.playing,false);
+ await failure;await paused;assert.equal(c.playing,false);
 });
 test('changing the video clears a previous receiver rate error',()=>{
  const {controller:c}=fixture();c.rateError='YouTube-Fehler 152';c.setSource('youtube','zzzzzzzzzzz');assert.equal(c.rateError,'');

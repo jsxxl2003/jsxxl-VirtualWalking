@@ -15,7 +15,7 @@
  const tv=window.VirtualWalkingNative?new (window.VirtualWalkingCast.RoutedController||window.VirtualWalkingCast.CastController)({rpc:window.VirtualWalkingNative.rpc,onChange:()=>{renderTV();}}):null;
  function renderTV(){
   const node=$('tvStatus');if(!node||!tv)return;
-  if(tv.receiver?.selected&&tv.route===tv.receiver){node.textContent=!tv.connected?'TV: waipu.tv Box nicht erreichbar. Über „TV verbinden“ die Direktverbindung prüfen.':!tv.matches()?'Verbunden: '+tv.device+' · „Training starten“ sendet das ausgewählte YouTube-Video.':!tv.fresh()?'TV: Warte auf aktuelle Rückmeldung.':'TV: '+tv.device+' · '+(tv.playing?'Wiedergabe':'Pausiert / bereit')+' · '+rateLabel(tv.rate);return;}
+  if(tv.receiver?.selected&&tv.route===tv.receiver){node.textContent=!tv.connected?'TV: '+tv.device+' nicht erreichbar. '+(tv.transportError||'Über „TV verbinden“ die Direktverbindung prüfen.'):!tv.matches()?'Verbunden: '+tv.device+' · „Training starten“ sendet das ausgewählte YouTube-Video.':!tv.fresh()?'TV: Warte auf aktuelle Rückmeldung.':'TV: '+tv.device+' · '+(tv.playing?'Wiedergabe':'Pausiert / bereit')+' · '+rateLabel(tv.rate);return;}
   node.textContent=!tv.active?'TV: Über das Cast-Symbol oben verbinden.':!tv.connected?'TV: Nicht verbunden. Bitte über das Cast-Symbol erneut verbinden.':!tv.matches()?'Verbunden: '+tv.device+' · Bitte dasselbe YouTube-Video am TV öffnen.':!tv.fresh()?'TV: Warte auf aktuelle Rückmeldung.':'TV: '+tv.device+' · '+(tv.playing?'Wiedergabe':'Pausiert / bereit')+' · '+rateLabel(tv.rate);
  }
  window.addEventListener('vw-native',event=>{
@@ -354,6 +354,7 @@
   if(tv?.active){
    renderTV();const opts=settings();
    if(starting){syncLabel('Gemeinsamer Start am TV','Warte auf TV-Bestätigung und Bandbewegung.');return;}
+   if(!tv.connected){syncLabel('TV-Empfänger nicht erreichbar',tv.transportError||'Über „TV verbinden“ die Direktverbindung prüfen.');return;}
    if(!tv.matches()){syncLabel('TV-Video noch nicht zugeordnet',tv.receiver?.selected?'„Training starten“ sendet das ausgewählte Video an die waipu.tv Box.':'Dasselbe YouTube-Video zuerst am Fernseher öffnen.');return;}
    if(!tv.fresh()){if(wantedVideo||tv.playing){beltPaused=true;pauseVideo(true);}syncLabel('Keine aktuelle TV-Rückmeldung','Laufband am Gerät anhalten.',null);return;}
    if(!opts.sync){syncLabel('TV-Tempoanpassung aus','Videotempo wird nicht automatisch verändert.',tv.rate);return;}

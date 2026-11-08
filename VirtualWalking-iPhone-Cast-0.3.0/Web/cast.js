@@ -85,12 +85,12 @@
  }
  // Direct HTTP receiver: only player feedback confirms playback, never an HTTP acknowledgement.
  class ReceiverController {
-  constructor({rpc,onChange=()=>{},now=()=>performance.now()}){Object.assign(this,{rpc,onChange,now,selected:false,connected:false,source:null,state:null,receivedAt:-Infinity,confirmedRate:null,rateError:'',device:'waipu.tv Box',suspended:false,polling:false,epoch:0});}
+  constructor({rpc,onChange=()=>{},now=()=>performance.now()}){Object.assign(this,{rpc,onChange,now,selected:false,connected:false,source:null,state:null,receivedAt:-Infinity,confirmedRate:null,rateError:'',transportError:'',device:'waipu.tv Box',suspended:false,polling:false,epoch:0,requestTail:Promise.resolve(),statusTask:null,pauseTask:null});}
   get active(){return this.selected;}
   setSource(kind,value){this.source=kind==='youtube'?videoID(value):null;this.confirmedRate=null;this.rateError='';this.epoch++;}
   accept(status){
    if(!status||!Number.isFinite(status.playerState)||!Number.isFinite(status.feedbackAgeMs)||typeof status.playerReady!=='boolean')throw Error('TV-Empfänger aktualisieren: Es fehlt die Rückmeldung des Videoplayers.');
-   this.connected=true;this.state=status;this.receivedAt=this.now();
+   this.connected=true;this.state=status;this.receivedAt=this.now();this.transportError='';
    if(status.playerError)this.rateError='YouTube-Fehler '+status.playerError;
    this.onChange();
   }
@@ -101,16 +101,36 @@
   async poll(){
    if(!this.selected||this.suspended||this.polling)return;
    this.polling=true;const epoch=this.epoch;
-   try{const status=await this.rpc('tv.receiver.status');if(epoch===this.epoch&&!this.suspended)this.accept(status);}catch{if(epoch===this.epoch){this.connected=false;this.confirmedRate=null;this.onChange();}}
+   try{const status=await this.readStatus();if(epoch===this.epoch&&!this.suspended)this.accept(status);}catch(error){if(epoch===this.epoch){this.connected=false;this.confirmedRate=null;this.transportError=C.errorText(error);this.onChange();}}
    finally{this.polling=false;}
   }
-  async command(method,params={}){await this.rpc('tv.receiver.'+method,params);}
-  check(signal,epoch){if(signal?.aborted||this.suspended||epoch!==this.epoch)throw Error('TV-Start abgebrochen.');}
+  request(method,params={},signal,epoch=this.epoch){
+   const canFinish=method==='pause'||method==='stop';
+   const task=this.requestTail.then(async()=>{
+    this.check(signal,epoch,canFinish);
+    try{const response=await this.rpc('tv.receiver.'+method,params);this.check(signal,epoch,canFinish);return response;}
+    catch(error){
+     this.check(signal,epoch,canFinish);
+     const action={status:'TV-Status lesen',play:'TV-Video laden',resume:'TV-Video starten',pause:'TV-Video pausieren',stop:'TV-Video beenden',rate:'TV-Tempo ändern'}[method]||'TV-Befehl';
+     this.transportError=action+': '+C.errorText(error);throw Error(this.transportError);
+    }
+   });
+   // A failed request must not block a later pause or an explicit retry.
+   this.requestTail=task.catch(()=>{});return task;
+  }
+  readStatus(){
+   if(this.statusTask?.epoch===this.epoch)return this.statusTask.promise;
+   const operation={epoch:this.epoch};operation.promise=this.request('status');this.statusTask=operation;
+   operation.promise.finally(()=>{if(this.statusTask===operation)this.statusTask=null;}).catch(()=>{});
+   return operation.promise;
+  }
+  async command(method,params={},signal,epoch=this.epoch){await this.request(method,params,signal,epoch);}
+  check(signal,epoch,canFinish=false){if(signal?.aborted||(!canFinish&&this.suspended)||epoch!==this.epoch)throw Error('TV-Start abgebrochen.');}
   async waitFor(predicate,signal,epoch=this.epoch){
    const deadline=Date.now()+10000;
    while(Date.now()<deadline){
     this.check(signal,epoch);
-    const status=await this.rpc('tv.receiver.status');this.check(signal,epoch);this.accept(status);
+    const status=await this.readStatus();this.check(signal,epoch);this.accept(status);
     if(status.playerError)throw Error('YouTube-Fehler '+status.playerError);
     if(this.fresh()&&predicate(status))return;
     await new Promise(resolve=>setTimeout(resolve,200));
@@ -119,21 +139,27 @@
   }
   async prepare(signal){
    if(!this.source)throw Error('Bitte ein YouTube-Laufvideo wählen.');
+   this.intent='prepare';
    const epoch=this.epoch;
    this.check(signal,epoch);
-   if(this.fresh())await this.command('resume');else await this.command('play',{id:this.source});
+   if(this.fresh())await this.command('resume',{},signal,epoch);else await this.command('play',{id:this.source},signal,epoch);
    await this.waitFor(s=>s.playerState===1,signal,epoch);
-   await this.command('pause');await this.waitFor(s=>s.playerState===2,signal,epoch);
+   await this.command('pause',{},signal,epoch);await this.waitFor(s=>s.playerState===2,signal,epoch);
   }
-  async play(signal){const epoch=this.epoch;this.check(signal,epoch);await this.command('resume');await this.waitFor(s=>s.playerState===1,signal,epoch);}
-  pause(){this.epoch++;return this.command('pause');}
-  stop(){this.epoch++;return this.command('stop');}
+  async play(signal){this.intent='play';const epoch=this.epoch;this.check(signal,epoch);await this.command('resume',{},signal,epoch);await this.waitFor(s=>s.playerState===1,signal,epoch);}
+  pause(){
+   if(this.intent==='pause'&&this.pauseTask?.epoch===this.epoch)return this.pauseTask.promise;
+   this.intent='pause';this.epoch++;const operation={epoch:this.epoch};operation.promise=this.command('pause');this.pauseTask=operation;
+   operation.promise.finally(()=>{if(this.pauseTask===operation)this.pauseTask=null;}).catch(()=>{});
+   return operation.promise;
+  }
+  stop(){this.intent='stop';this.epoch++;return this.command('stop');}
   async setRate(rate){
    if(this.pendingRate||this.rateError||!this.playing)return;
    if(!Number.isFinite(rate)||rate<.5||rate>2)throw Error('Ungültiges TV-Tempo.');
    if(this.confirmedRate===rate&&Math.abs(this.rate-rate)<.025)return;
    this.pendingRate=true;const epoch=this.epoch;
-   try{await this.command('rate',{value:rate});await this.waitFor(s=>Math.abs(s.actualRate-rate)<.025,null,epoch);this.confirmedRate=rate;}
+   try{await this.command('rate',{value:rate},null,epoch);await this.waitFor(s=>Math.abs(s.actualRate-rate)<.025,null,epoch);if(epoch===this.epoch)this.confirmedRate=rate;}
    catch(error){if(epoch===this.epoch)this.rateError=C.errorText(error);}
    finally{this.pendingRate=false;this.onChange();}
   }
@@ -144,7 +170,7 @@
   constructor(options){this.cast=new CastController(options);this.receiver=new ReceiverController(options);this.route=this.cast;}
   connectReceiver(address){
    const receiver=this.receiver;
-   if(typeof address==='string'&&address&&address!==receiver.address){
+   if(typeof address==='string'&&address){
     receiver.address=address;receiver.epoch++;receiver.state=null;receiver.connected=false;receiver.receivedAt=-Infinity;receiver.confirmedRate=null;
     receiver.device='waipu.tv Box · '+address.replace(/^http:\/\//,'');
    }
@@ -154,7 +180,7 @@
   setSource(kind,value){this.cast.setSource(kind,value);this.receiver.setSource(kind,value);}
   poll(){return this.receiver.poll();}
  }
- for(const name of ['active','connected','device','playing','rate','rateError','confirmedRate'])Object.defineProperty(RoutedController.prototype,name,{get(){return this.route[name];}});
+ for(const name of ['active','connected','device','playing','rate','rateError','transportError','confirmedRate'])Object.defineProperty(RoutedController.prototype,name,{get(){return this.route[name];}});
  for(const name of ['matches','fresh','prepare','play','pause','stop','setRate','suspend','resume'])RoutedController.prototype[name]=function(...args){return this.route[name](...args);};
 
  const api={CastController,ReceiverController,RoutedController,videoID};

@@ -1,5 +1,5 @@
 {
-  "version": "0.4.10",
+  "version": "0.4.11",
   "status": "behavior-tested-awaiting-device-check",
   "upstream": "VirtualWalking Bluefy 0.1.4",
   "upstream_files": {
@@ -9,8 +9,9 @@
   },
   "receiver_app_id": "233637DE",
   "cast_sdk": "4.8.6",
-  "source_base_commit": "eed6fee2ce0e979bc6284d0328cce31938331f8f",
+  "source_base_commit": "50f9bcecfd66bbef578ebc6875b152dc7f343337",
   "features": [
+    "ordered TV command stream with shared status requests and cancellation",
     "persistent configurable TV receiver address paired with connection key",
     "shared training path for TV menu and training buttons",
     "wait for first real FTMS speed packet",
@@ -21,15 +22,15 @@
     "persistent last selected YouTube video"
   ],
   "direct_video_sender_implemented": true,
-  "build": 13,
+  "build": 14,
   "default_transport": "direct-http-tv-receiver",
   "receiver_version": "0.1.4",
   "source_files_sha256": {
     "core.js": "c35b3c28e4a561cd365e7dd3d987a4a1e583eee9b8463128e9c841d604d80892",
     "bluetooth.js": "622b508bcdedb86fbc0446a141ec01bf6d73f64a8cadbdf2a04b6af9f3a6d7fe",
     "joint-start.js": "f3a93401a4704d48b960744f9653e761c7a453b041e8ee1ee96ce21bf5486628",
-    "cast.js": "395b7d4045d7127c03839f3c093f1427cf5471ddd1aafd434e81921ebabf24e3",
-    "app.js": "7c7bd9bacd14e2cc6aa905de4462bec9d595393a35537bdae67a44de8ded407a"
+    "cast.js": "3588f9504d6967e9c77f655c87e15d20a54864742534fd887a3b4153dae0a9a7",
+    "app.js": "cc9d3775b1b3e2ae9e2c9e47c8e0178041c52729182aaaf8cdc66b3d22c7a125"
   },
   "live_screen_mirroring_implemented": false
 }

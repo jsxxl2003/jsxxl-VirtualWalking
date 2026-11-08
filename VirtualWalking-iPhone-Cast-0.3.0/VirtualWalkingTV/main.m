@@ -372,6 +372,7 @@ static BOOL VWPhilipsDevicePublished = NO;
 @property(nonatomic, strong) WKWebView *web;
 @property(nonatomic, strong) VWBLE *ble;
 @property(nonatomic, strong) VWCast *cast;
+@property(nonatomic, strong) NSURLSession *receiverSession;
 @property(nonatomic, strong) NSString *token;
 @property(nonatomic, assign) BOOL ready;
 - (void)suspend;
@@ -385,7 +386,13 @@ static BOOL VWPhilipsDevicePublished = NO;
 }
 - (void)emit:(NSDictionary *)event { if (self.ready) [self call:@"__vwNativeEvent" value:event]; }
 - (void)viewDidLoad {
-    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.10"; self.token = NSUUID.UUID.UUIDString;
+    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.11"; self.token = NSUUID.UUID.UUIDString;
+    NSURLSessionConfiguration *receiverConfig = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+    receiverConfig.HTTPMaximumConnectionsPerHost = 1;
+    receiverConfig.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
+    receiverConfig.timeoutIntervalForRequest = 5;
+    receiverConfig.timeoutIntervalForResource = 8;
+    self.receiverSession = [NSURLSession sessionWithConfiguration:receiverConfig];
     NSString *bridgePath = [NSBundle.mainBundle pathForResource:@"native-bridge" ofType:@"js" inDirectory:@"Web"];
     NSString *bridge = [NSString stringWithContentsOfFile:bridgePath encoding:NSUTF8StringEncoding error:nil];
     NSData *tokenData = [NSJSONSerialization dataWithJSONObject:@[self.token] options:0 error:nil];
@@ -443,11 +450,11 @@ static BOOL VWPhilipsDevicePublished = NO;
     NSURL *url = VWReceiverRequestURL(base, command, parts);
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
     request.timeoutInterval = 5;
-    [[[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+    [[self.receiverSession dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         NSHTTPURLResponse *http = (NSHTTPURLResponse *)response;
         id json = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
         dispatch_async(dispatch_get_main_queue(), ^{
-            if (error) reply(nil, [NSString stringWithFormat:@"TV %@:%@ nicht erreichbar: %@. Die Adresse unter „TV verbinden“ mit der Anzeige am Fernseher vergleichen.", base.host, base.port, error.localizedDescription], @"NetworkError");
+            if (error) reply(nil, [NSString stringWithFormat:@"TV %@:%@/%@: %@", base.host, base.port, command, error.localizedDescription], @"NetworkError");
             else if (http.statusCode != 200) reply(nil, VWString([json isKindOfClass:NSDictionary.class] ? json[@"error"] : nil).length ? VWString(json[@"error"]) : [NSString stringWithFormat:@"TV antwortet mit HTTP %ld.", (long)http.statusCode], @"NetworkError");
             else reply(json ?: @{}, nil, nil);
         });
@@ -484,7 +491,7 @@ static BOOL VWPhilipsDevicePublished = NO;
         NSURL *url = VWReceiverRequestURL(base, @"status", @{@"key":key});
         NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
         request.timeoutInterval = 6;
-        [[[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        [[weakSelf.receiverSession dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
             NSHTTPURLResponse *http = (NSHTTPURLResponse *)response;
             id json = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
             BOOL connected = !error && http.statusCode == 200 && [json isKindOfClass:NSDictionary.class] && [VWString(json[@"receiver"]) isEqualToString:@"VirtualWalking-TV"];
@@ -495,7 +502,8 @@ static BOOL VWPhilipsDevicePublished = NO;
                     [weakSelf emit:@{@"type":@"tv.receiver.connected",@"address":base.absoluteString}];
                 }
                 NSString *detail = error.localizedDescription ?: (http.statusCode == 403 ? @"Schlüssel ungültig. Den aktuellen Schlüssel vom Fernseher verwenden." : http.statusCode == 200 ? @"An dieser Adresse antwortet kein VirtualWalking-TV-Empfänger." : [NSString stringWithFormat:@"HTTP %ld", (long)http.statusCode]);
-                NSString *message = connected ? [NSString stringWithFormat:@"Mit %@ verbunden. Adresse und Schlüssel sind gespeichert.", base.absoluteString] : [NSString stringWithFormat:@"Keine Verbindung zu %@: %@", base.absoluteString, detail];
+                NSString *version = [json isKindOfClass:NSDictionary.class] ? VWString(json[@"version"]) : @"";
+                NSString *message = connected ? [NSString stringWithFormat:@"Mit %@ verbunden. TV-Empfänger %@. Adresse und Schlüssel sind gespeichert.", base.absoluteString, version.length ? version : @"Version unbekannt"] : [NSString stringWithFormat:@"Keine Verbindung zu %@: %@", base.absoluteString, detail];
                 UIAlertController *result = [UIAlertController alertControllerWithTitle:connected ? @"waipu.tv verbunden" : @"Verbindung fehlgeschlagen" message:message preferredStyle:UIAlertControllerStyleAlert];
                 [result addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
                 [weakSelf presentViewController:result animated:YES completion:nil];
@@ -658,7 +666,7 @@ static BOOL VWPhilipsDevicePublished = NO;
     [alert addAction:[UIAlertAction actionWithTitle:@"Bestätigen" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *a) { completionHandler(YES); }]];
     [self presentViewController:alert animated:YES completion:nil];
 }
-- (void)dealloc { [NSNotificationCenter.defaultCenter removeObserver:self]; [self.ble close]; [self.web.configuration.userContentController removeScriptMessageHandlerForName:@"virtualwalking"]; }
+- (void)dealloc { [NSNotificationCenter.defaultCenter removeObserver:self]; [self.ble close]; [self.receiverSession invalidateAndCancel]; [self.web.configuration.userContentController removeScriptMessageHandlerForName:@"virtualwalking"]; }
 @end
 
 @interface VWSceneDelegate : UIResponder <UIWindowSceneDelegate>

@@ -2,14 +2,46 @@
 
 ## Aktueller Stand
 
-- iPhone-App: **0.4.10, Build 13**; Android-TV-Empfänger: **0.1.4, Build 5**.
+- iPhone-App: **0.4.11, Build 14**; Android-TV-Empfänger: **0.1.4, Build 5**.
 - Aktueller TV-Weg: eigener VirtualWalking-Empfänger auf der waipu.tv Box,
-  HTTP-Port 8765. Die TV-Anzeige vom 8. November nennt 192.168.0.119;
-  zuvor war 192.168.0.32 verwendet worden. Das iPhone bleibt die Steuerzentrale.
+  HTTP-Port 8765. Die Box ist wieder per LAN verbunden; im Vodafone-Router
+  ist 192.168.0.32 reserviert und am TV bestätigt. Zwischenzeitlich wurde
+  über eine andere Verbindung 192.168.0.119 angezeigt. Das iPhone bleibt die Steuerzentrale.
 - Die zuvor getrennten Arbeiten vom Entwicklungszweig
   `fix/tv-player-identity-0.1.1` sind Grundlage dieses gemeinsamen Stands.
 
 ## Behobene Fehler
+
+### Korrektur 0.4.11
+
+Nach bestätigter Bluetooth- und direkter TV-Verbindung wurde beim gemeinsamen
+Start erneut eine HTTP-Zeitüberschreitung gemeldet. Dadurch wurde die eigentliche
+FTMS-Steuerfreigabe noch nicht geprüft. Ein automatischer Motorstart ist auf
+dem realen Gerät weiterhin nicht bestätigt.
+
+Im Code konnten Hintergrund-Statusabfragen, Startbestätigungen und Pausebefehle
+parallel laufen. Mehrere gleiche Pause-Aufträge konnten sich anhäufen. Diese
+Abläufe sind in Tests nachgestellt und korrigiert: Alle HTTP-Anfragen des
+TV-Controllers laufen in einer Reihenfolge. Gleichzeitig benötigte
+Statusabfragen werden geteilt. Ein abgebrochener, noch nicht gesendeter
+Wiedergabebefehl bleibt verworfen; wiederholte Pause-Aufträge werden
+zusammengefasst. Nach einer zwischenzeitlichen Fortsetzungsanforderung bleibt
+eine erneute Pause wirksam. Auch beim Wechsel der App in den Hintergrund kann
+der notwendige Pausebefehl gesendet werden.
+
+Native TV-Anfragen und der Verbindungsdialog verwenden eine eigene, nicht
+zwischenspeichernde HTTP-Sitzung mit einer Verbindung pro Ziel. Eine Fehlermeldung
+nennt den fehlgeschlagenen Befehl und seine Zieladresse. Eine unerreichbare Box
+wird in der vorhandenen Statusanzeige als unerreichbar gemeldet, statt nur ein
+nicht zugeordnetes Video anzuzeigen. Die Verbindungsbestätigung nennt außerdem
+die vom TV gemeldete Empfängerversion. Keine neuen Bedienknöpfe.
+
+Die tatsächliche Ursache der beobachteten Zeitüberschreitung ist damit noch
+nicht am Gerät bewiesen. Der Gerätetest muss sowohl die neue TV-Kommunikation
+als auch die unveränderte FTMS-Steuerfreigabe und den bestätigten Motorstart
+prüfen. Die Motorbefehle werden weiterhin erst nach bestätigter TV-Vorbereitung
+und aktuellen Stillstandsdaten angefordert. Ohne Freigabe bleibt der manuelle
+Bandstart möglich. Der TV-Empfänger bleibt unverändert bei 0.1.4.
 
 ### Korrektur 0.4.10
 
@@ -96,7 +128,7 @@ bestehen; es gibt keine neuen Bedienknöpfe im Trainingsbildschirm.
 
 ## Prüfergebnis und Grenzen
 
-51 automatisierte Verhaltenstests einschließlich nativer JavaScript-Schnittstelle,
+57 automatisierte Verhaltenstests einschließlich nativer JavaScript-Schnittstelle,
 echtem FTMS-Parser, Trainingsoberfläche, TV-Controller und eingebettetem
 TV-Player-Skript und kompilierter nativer IPv4-Adressprüfung bestehen.
 Verspätete Rückmeldungen nach einem Adresswechsel sind abgedeckt. Der
@@ -113,7 +145,7 @@ Laufband, iPhone und waipu-Box muss den gemeinsamen Stand noch bestätigen.
 2. In Codemagic „VirtualWalking iPhone“ von `main` bauen und die IPA wie bisher
    mit Sideloadly installieren.
 3. TV-Empfänger öffnen, am iPhone „TV verbinden“ → „waipu.tv · Direkt verbinden
-   (Android)“ öffnen. Die aktuelle TV-Adresse (zuletzt http://192.168.0.119:8765)
+   (Android)“ öffnen. Die aktuelle TV-Adresse (aktuell http://192.168.0.32:8765)
    und den Schlüssel vom TV eingeben und verbinden. YouTube-Video
    öffnen oder „Letztes YouTube-Video vorbereiten“ wählen. Das Laufband per
    Bluetooth verbinden und „Training starten“ antippen. Bei fehlender Steuerfreigabe das
