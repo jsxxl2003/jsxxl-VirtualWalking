@@ -13,6 +13,7 @@
  let starting=false,stopping=false,startupTask=null,startupAbort=null,playbackProbe=null,manualStartWaiting=false,dataStartWaiting=false;
  let motorMayRun=false,coupled=false,stopTask=null,stopConfirmed=false;
  let speedTask=null,speedAbort=null,speedTarget=null,speedTargetAt=0;
+ let normalVideoStart=null;
  const tv=window.VirtualWalkingNative?new (window.VirtualWalkingCast.RoutedController||window.VirtualWalkingCast.CastController)({rpc:window.VirtualWalkingNative.rpc,onChange:()=>{renderTV();}}):null;
  function renderTV(){
   const node=$('tvStatus');if(!node||!tv)return;
@@ -37,7 +38,22 @@
 
 
  function announce(message,error=false){text('message',message);$('message').classList.toggle('error',error);}
- function settings(){const reference=Number($('referenceSpeed').value);return {sync:$('syncEnabled').checked,pauseAtZero:$('pauseAtZero').checked,reference:Number.isFinite(reference)&&reference>=1&&reference<=15?reference:4};}
+ function settings(){const reference=Number($('referenceSpeed').value);return {sync:$('syncEnabled').checked,pauseAtZero:$('pauseAtZero').checked,reference:Number.isFinite(reference)&&reference>=.1&&reference<=655.35?reference:4};}
+ function armNormalVideoStart(){
+  normalVideoStart={speed:null,since:null};lastRateRequest=null;
+  if(tv?.active)return;
+  try{if(videoKind==='youtube')youtubePlayer?.setPlaybackRate(1);else $('video').playbackRate=1;}catch{}
+ }
+ function requestedVideoRate(opts){
+  if(!normalVideoStart)return C.targetRate(speed,opts.reference);
+  // Keep the original video pace during motor acceleration. Only a steady,
+  // actually reported walking speed becomes the reference for this session.
+  if(!workout?.running||!videoPlaying()||!freshSpeed()||!Number.isFinite(speed)||speed<.1){normalVideoStart.speed=null;normalVideoStart.since=null;return 1;}
+  const now=performance.now();
+  if(normalVideoStart.speed===null||Math.abs(speed-normalVideoStart.speed)>=.05){normalVideoStart.speed=speed;normalVideoStart.since=now;}
+  else if(now-normalVideoStart.since>=3000){$('referenceSpeed').value=String(Number(speed.toFixed(2)));normalVideoStart=null;}
+  return 1;
+ }
  function fresh(){return bt.connected&&lastDataAt>0&&performance.now()-lastDataAt<5000;}
  function freshSpeed(){return fresh()&&lastSpeedAt>0&&performance.now()-lastSpeedAt<5000;}
  function manualBeltOnly(){return !motorMayRun&&(!bt.startBlockedReason||bt.uncertainCommand===0)&&(!bt.canControl||bt.controlDenied||bt.uncertainCommand===0);}
@@ -46,7 +62,7 @@
   if(videoKind==='none')return;
   wantedVideo=true;
   if(document.hidden)return;
-  if(tv?.active){tv.play().catch(error=>{text('videoStatus',C.errorText(error));});return;}
+  if(tv?.active){tv.play(undefined,normalVideoStart?1:undefined).catch(error=>{text('videoStatus',C.errorText(error));});return;}
   try{if(videoKind==='youtube'){if(youtubeReady)youtubePlayer.playVideo();}else $('video').play().catch(()=>text('videoStatus','Bitte zum Starten einmal ▶ im Video drücken.'));}catch{ text('videoStatus','Bitte die Wiedergabe im Video starten.');}
  }
  function pauseVideo(automatic=false){
@@ -97,8 +113,7 @@
  function requestPlayback(signal,hold=false){
   if(tv?.active){
    if(videoKind!=='youtube')return Promise.reject(Error('Dieser TV-Baustein übernimmt bestehende YouTube-TV-Sitzungen. Bitte ein YouTube-Laufvideo wählen.'));
-   const opts=settings(),initialRate=opts.sync&&freshSpeed()&&speed>0?C.targetRate(speed,opts.reference):1;
-   return (hold?tv.prepare(signal):tv.play(signal,initialRate)).then(()=>{if(!hold){wantedVideo=true;beltPaused=false;}});
+   return (hold?tv.prepare(signal):tv.play(signal,1)).then(()=>{if(!hold){wantedVideo=true;beltPaused=false;}});
   }
   if(videoKind==='none')return Promise.reject(Error('Bitte zuerst ein Laufvideo wählen.'));
   if(videoKind==='youtube'&&!youtubeReady)return Promise.reject(Error('Bitte warten, bis das YouTube-Video bereit ist.'));
@@ -151,6 +166,7 @@
   if(!bt.connected){announce('Bitte zuerst das Laufband verbinden.',true);return;}
   if(bt.startBlockedReason&&!manualBeltOnly()){announce(bt.startBlockedReason,true);return;}
   if(videoKind==='none'){announce('Bitte zuerst ein Laufvideo über „YouTube / Link“ oder „Video vom iPhone“ auswählen.',true);return;}
+  armNormalVideoStart();
   // Unlock iOS YouTube playback synchronously in the user's tap gesture, before awaiting BLE operations.
   // The joint-start state machine will pause the preview before requesting belt motion.
   if(videoKind==='youtube' && youtubeReady && !tv?.active) { try { youtubePlayer.playVideo(); } catch {} }
@@ -173,11 +189,13 @@
   })();
  }
  function pause(reason='Training und Video pausiert.'){
+  normalVideoStart=null;
   cancelSpeedAdjustment();
   if(workout?.running)workout.pause(performance.now(),speed,freshSpeed());
   pauseVideo();keepAwake(false);announce(reason);renderWorkout();
  }
  function finishRecording(){
+  normalVideoStart=null;
   cancelSpeedAdjustment();
   if(!workout)return;
   if(workout.running)workout.pause(performance.now(),speed,freshSpeed());
@@ -267,7 +285,7 @@
   const video=$('video');video.pause();video.removeAttribute('src');video.load();video.hidden=true;
   if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl=null;}
   tv?.setSource(null,null);
-  videoKind='none';lastRateRequest=null;lastRateRequestAt=0;actualRate=null;beltPaused=false;
+  videoKind='none';lastRateRequest=null;lastRateRequestAt=0;actualRate=null;beltPaused=false;armNormalVideoStart();
   $('videoPlaceholder').hidden=true;
  }
  function markVideo(name,source){videoName=name;text('videoTitle',name);text('videoSource',source);}
@@ -378,7 +396,7 @@
    playVideo();
    if(videoPlaying())beltPaused=false;
   }
-   const requested=C.targetRate(speed,opts.reference);
+   const requested=requestedVideoRate(opts);
    if(tv.rateError){syncLabel('TV-Tempo nicht bestätigt',tv.rateError,tv.rate);return;}
    if(tv.playing)tv.setRate(requested).catch(error=>syncLabel('TV-Tempo nicht bestätigt',C.errorText(error),tv.rate));
    const confirmed=tv.playing&&tv.confirmedRate===requested&&Math.abs(tv.rate-requested)<.025;
@@ -401,7 +419,7 @@
    playVideo();
    if(videoPlaying())beltPaused=false;
   }
-  const requested=C.targetRate(speed,opts.reference);
+  const requested=requestedVideoRate(opts);
   if(videoKind==='youtube'){
    if(!youtubeReady){syncLabel('YouTube wird vorbereitet','Warte auf die verfügbaren Tempostufen.');return;}
    let rates=[];try{rates=(youtubePlayer.getAvailablePlaybackRates()||[]).filter(n=>n>=.5&&n<=2);}catch{}
@@ -423,15 +441,16 @@
  const savedSettings=read('settings',{});
  if(typeof savedSettings.sync==='boolean')$('syncEnabled').checked=savedSettings.sync;
  if(typeof savedSettings.pauseAtZero==='boolean')$('pauseAtZero').checked=savedSettings.pauseAtZero;
- if(Number(savedSettings.reference)>=1&&Number(savedSettings.reference)<=15)$('referenceSpeed').value=String(savedSettings.reference);
- function saveSettings(showValidation=false){
+ if(Number(savedSettings.reference)>=.1&&Number(savedSettings.reference)<=655.35)$('referenceSpeed').value=String(savedSettings.reference);
+ function saveSettings(showValidation=false,referenceEdited=false){
   if(!$('referenceSpeed').checkValidity()){if(showValidation)$('referenceSpeed').reportValidity();return;}
+  if(referenceEdited)normalVideoStart=null;
   write('settings',settings());
   if(!settings().sync){beltPaused=false;try{if(videoKind==='youtube')youtubePlayer?.setPlaybackRate(1);else video.playbackRate=1;}catch{}}
   syncVideo();
  }
- for(const id of ['syncEnabled','pauseAtZero','referenceSpeed'])$(id).addEventListener('change',()=>saveSettings(true));
- $('referenceSpeed').addEventListener('input',()=>saveSettings());
+ for(const id of ['syncEnabled','pauseAtZero','referenceSpeed'])$(id).addEventListener('change',()=>saveSettings(true,id==='referenceSpeed'));
+ $('referenceSpeed').addEventListener('input',()=>saveSettings(false,true));
  const rules={weight:[25,300],height:[100,250],age:[10,120]};const profile=read('profile',{});
  for(const id of ['weight','height','age','gender']){
   const input=$(id),saved=String(profile[id]||'');

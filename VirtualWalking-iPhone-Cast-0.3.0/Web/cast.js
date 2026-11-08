@@ -153,7 +153,7 @@
   async play(signal,initialRate){
    this.intent='play';const epoch=this.epoch;this.check(signal,epoch);
    if(initialRate!==undefined){if(!Number.isFinite(initialRate)||initialRate<.5||initialRate>2)throw Error('Ungültiges TV-Starttempo.');await this.command('rate',{value:initialRate},signal,epoch);this.confirmedRate=null;}
-   await this.command('resume',{},signal,epoch);await this.waitFor(s=>s.playerState===1,signal,epoch);
+   await this.command('resume',{},signal,epoch);await this.waitFor(s=>s.playerState===1&&(initialRate===undefined||Math.abs(s.actualRate-initialRate)<.025),signal,epoch);
   }
   pause(){
    if(this.intent==='pause'&&this.pauseTask?.epoch===this.epoch)return this.pauseTask.promise;

@@ -2,6 +2,35 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const {app,flush}=require('./app-fixture.cjs');
 const last={id:'M7lc1UVf-VE',title:'Gespeicherte Laufstrecke'};
+test('TV videos start at normal speed below the saved reference and remain normal at steady walking speed',async t=>{
+ for(const id of ['M7lc1UVf-VE','abcdefghijk']){
+  const a=app(t,{nativeBLE:true,nativeReceiver:true,initialTVRate:.5});a.click('connect');await flush();a.loadYoutube(id);await flush();a.sample(0);a.click('start');await flush();a.sample(2);await flush();
+  assert.equal(a.el('trainingStatus').textContent,'Aufzeichnung läuft');assert.deepEqual(a.resumedRates,[1]);assert.equal(a.tvRate(),1);
+  a.advance(3200);a.sample(2);a.tickUI();await flush();
+  assert.equal(a.el('referenceSpeed').value,'2');assert.equal(a.tvRate(),1);assert.equal(a.requestedRates.every(rate=>rate===1),true);
+  a.sample(3);a.tickUI();await flush();assert.equal(a.tvRate(),1.5);
+ }
+});
+test('normal video speed is held while the treadmill accelerates to a stable starting speed',async t=>{
+ const a=app(t,{nativeBLE:true,nativeReceiver:true});a.click('connect');await flush();a.loadYoutube();await flush();a.sample(0);a.click('start');await flush();a.sample(.2);await flush();
+ a.advance(1000);a.sample(1);await flush();a.advance(1000);a.sample(2);await flush();a.advance(1000);a.sample(2);await flush();
+ assert.equal(a.el('referenceSpeed').value,'4');assert.equal(a.tvRate(),1);assert.equal(a.requestedRates.every(rate=>rate===1),true);
+ a.advance(2100);a.sample(2);a.tickUI();await flush();assert.equal(a.el('referenceSpeed').value,'2');assert.equal(a.tvRate(),1);
+});
+test('normal startup also supports slow walking below one km/h',async t=>{
+ const a=app(t,{nativeBLE:true,nativeReceiver:true});a.click('connect');await flush();a.loadYoutube();await flush();a.sample(0);a.click('start');await flush();a.sample(.5);await flush();
+ assert.equal(a.tvRate(),1);a.advance(3200);a.sample(.5);a.tickUI();await flush();assert.equal(a.el('referenceSpeed').value,'0.5');assert.equal(a.tvRate(),1);
+ a.sample(1);a.tickUI();await flush();assert.equal(a.tvRate(),2);
+});
+test('an explicitly edited reference is respected instead of being recalibrated',async t=>{
+ const a=app(t,{nativeBLE:true,nativeReceiver:true});a.click('connect');await flush();a.loadYoutube();await flush();a.sample(0);a.click('start');await flush();a.sample(2);await flush();
+ const input=a.el('referenceSpeed');input.checkValidity=()=>true;input.value='6';input.dispatchEvent(new Event('input'));await flush();
+ a.advance(3200);a.sample(2);a.tickUI();await flush();assert.equal(input.value,'6');assert.equal(a.tvRate(),.5);
+});
+test('disabled automatic adaptation keeps normal video speed and leaves the reference alone',async t=>{
+ const a=app(t,{nativeBLE:true,nativeReceiver:true});a.el('syncEnabled').checked=false;a.click('connect');await flush();a.loadYoutube();await flush();a.sample(0);a.click('start');await flush();a.sample(2);await flush();
+ a.advance(3200);a.sample(2);a.tickUI();await flush();assert.equal(a.tvRate(),1);assert.equal(a.el('referenceSpeed').value,'4');
+});
 test('starting TV training at reference speed does not resume the previous half-speed playback',async t=>{
  const a=app(t,{nativeBLE:true,nativeReceiver:true,initialTVRate:.5});a.click('connect');await flush();a.loadYoutube();await flush();a.sample(0);a.click('start');await flush();a.sample(4);await flush();
  assert.equal(a.el('trainingStatus').textContent,'Aufzeichnung läuft');assert.deepEqual(a.resumedRates,[1]);

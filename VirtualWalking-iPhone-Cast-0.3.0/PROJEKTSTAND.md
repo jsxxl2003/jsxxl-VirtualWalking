@@ -2,7 +2,7 @@
 
 ## Aktueller Stand
 
-- iPhone-App: **0.4.15, Build 18**; Android-TV-Empfänger: **0.1.5, Build 6**.
+- iPhone-App: **0.4.16, Build 19**; Android-TV-Empfänger: **0.1.5, Build 6**.
 - Aktueller TV-Weg: eigener VirtualWalking-Empfänger auf der waipu.tv Box,
   HTTP-Port 8765. Die Box ist wieder per LAN verbunden; im Vodafone-Router
   ist 192.168.0.32 reserviert und am TV bestätigt. Zwischenzeitlich wurde
@@ -11,6 +11,38 @@
   `fix/tv-player-identity-0.1.1` sind Grundlage dieses gemeinsamen Stands.
 
 ## Behobene Fehler
+
+### Korrektur 0.4.16: Video startet und bleibt zunächst bei 1×
+
+Der Nutzer meldet, dass mehrere Videos mit 0.4.15 weiterhin zu langsam starten.
+Die vorige Korrektur beseitigte nur ein übernommenes altes TV-Tempo. Der finale
+Start setzte weiterhin speed/reference, und die normale Synchronisierung forderte
+bei 2 km/h gegenüber der alten Referenz 4 km/h erneut 0,50× an. Zwei neue Tests
+haben genau diesen Fehler vor der Korrektur reproduziert.
+
+Vorbereitung und tatsächlicher Videostart verwenden jetzt ausdrücklich 1×.
+Der direkte TV-Controller wartet neben playerState=1 auch auf die tatsächliche
+Rückmeldung des angeforderten Starttempos. Während das Laufband anläuft bleibt
+das Video auf 1×. Sobald bei laufender Aufzeichnung, bestätigter Wiedergabe und
+frischen Geschwindigkeitsdaten drei Sekunden gleichmäßiges Bandtempo beobachtet
+wurden, wird dieses tatsächlich gemeldete Tempo in das bestehende Referenzfeld
+„Normales Videotempo bei“ übernommen. Das Video bleibt beim selben Bandtempo
+somit normal schnell. Erst spätere Tempoänderungen verändern die Videogeschwindigkeit
+proportional zu dieser Referenz. Es gibt keinen zeitgesteuerten Rückfall auf 0,50×.
+
+Eine bewusste Bearbeitung des vorhandenen Referenzfelds beendet die automatische
+Übernahme und wird respektiert. Die automatische Übernahme allein schreibt keine
+neuen Einstellungen in den Speicher. Das vorhandene Feld unterstützt nun auch
+Startgeschwindigkeiten unter 1 km/h und die Auflösung der gemeldeten FTMS-Daten.
+Bei deaktivierter Synchronisierung bleibt der Start normal schnell, ohne eine
+Referenz zu übernehmen. Die gleiche Startregel gilt für lokale Videos. Es werden
+keine zusätzlichen Buttons eingebaut und keine Motorbefehle verändert.
+
+86 Verhaltenstests bestehen, darunter zwei verschiedene Video-IDs, Anfahrrampe,
+gleichmäßiges Tempo, spätere Tempoänderung, langsames Gehen, manuelle Referenz,
+ausgeschaltete Synchronisierung und erst verspätet bestätigtes tatsächliches 1×.
+Die native Kompilierung erfolgt in Codemagic. Der TV-Empfänger bleibt 0.1.5;
+für diese Änderung ist ausschließlich ein neues iPhone-Build nötig.
 
 ### Erweiterung 0.4.15: Tempo-Tasten und TV-Starttempo
 

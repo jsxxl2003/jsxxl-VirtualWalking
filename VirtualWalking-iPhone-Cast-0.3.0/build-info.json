@@ -1,5 +1,5 @@
 {
-  "version": "0.4.15",
+  "version": "0.4.16",
   "status": "behavior-tested-awaiting-device-check",
   "upstream": "VirtualWalking Bluefy 0.1.4",
   "upstream_files": {
@@ -9,8 +9,12 @@
   },
   "receiver_app_id": "233637DE",
   "cast_sdk": "4.8.6",
-  "source_base_commit": "ac5f73273cc6867e404d41dc476e54f1f2b4618c",
+  "source_base_commit": "5810b3b4f0bc39376e2a760c064f87fd6ff20f7f",
   "features": [
+    "normal 1x video start throughout motor acceleration",
+    "stable actual initial walking speed becomes the session reference after three seconds",
+    "explicit manual reference edits override automatic startup calibration",
+    "TV start requires actual 1x player feedback",
     "two treadmill speed buttons with device-advertised limits and explicit FTMS target-speed acknowledgement",
     "speed changes never start a stopped belt and unsent changes are cancelled by pause/stop",
     "set initial TV playback rate before starting video rather than inheriting the prior session rate",
@@ -32,15 +36,15 @@
     "persistent last selected YouTube video"
   ],
   "direct_video_sender_implemented": true,
-  "build": 18,
+  "build": 19,
   "default_transport": "direct-http-tv-receiver",
   "receiver_version": "0.1.5",
   "source_files_sha256": {
     "core.js": "0bf601050c2e35d510454766663695d455a023247ffebbf897a8410fca32ef9b",
     "bluetooth.js": "bd1479730813b4123ae0bae4a4482d3014349e0b7468cd4da9e713889453fb21",
     "joint-start.js": "f3a93401a4704d48b960744f9653e761c7a453b041e8ee1ee96ce21bf5486628",
-    "cast.js": "c2fd00032242bfdb8c6dd02065a4f39f47ba0caebaf22c3b7da0f9f30a461c83",
-    "app.js": "fa2a015a6a5508720baecc90206d729c4f471fceb628dbba91986d3a8906ca84",
+    "cast.js": "a7dba19ab6c65c4d8bae410cf015fa96fcc6f246074460eb7738b9dc9c5d12e9",
+    "app.js": "1d21723704daf08a6dbea20a2b13b228b603af1ae5c24223e1101be5dada321c",
     "native-bridge.js": "0ea68eeebb5cbc4c21a4af5da6d80f4bc17fb1bf87cc2bcb0dde39a176c8acd1"
   },
   "live_screen_mirroring_implemented": false

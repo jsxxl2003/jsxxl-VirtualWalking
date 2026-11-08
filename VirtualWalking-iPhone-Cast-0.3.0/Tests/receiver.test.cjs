@@ -87,6 +87,11 @@ test('TV preparation resets a retained slow rate and resume applies the current 
  assert.deepEqual(calls.slice(before).filter(x=>x[0]!=='tv.receiver.status'),[['tv.receiver.rate',{value:1.5}],['tv.receiver.resume',{}]]);
  assert.equal(c.rate,1.5);assert.equal(c.playing,true);
 });
+test('normal-speed playback waits for actual 1x feedback instead of accepting a still-slow playing state',async()=>{
+ let reads=0;const c=new ReceiverController({rpc:async method=>({playerReady:true,playerState:1,actualRate:method==='tv.receiver.status'&&++reads>1?1:.5,playerVideoId:id,feedbackAgeMs:0})});
+ c.selected=true;c.setSource('youtube',id);await c.play(undefined,1);
+ assert.equal(reads,2);assert.equal(c.rate,1);assert.equal(c.playing,true);
+});
 test('HTTP acknowledgement cannot confirm a stale or wrong player',()=>{
  const {controller:c,status}=fixture();c.accept({...status,playerVideoId:'abcdefghijk',playerState:1});assert.equal(c.playing,false);
  c.accept({...status,feedbackAgeMs:10000,playerState:1});assert.equal(c.playing,false);
