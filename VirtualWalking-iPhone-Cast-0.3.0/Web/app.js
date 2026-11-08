@@ -12,6 +12,7 @@
  let wantedVideo=false,beltPaused=false,lastRateRequest=null,lastRateRequestAt=0,actualRate=null,wakeLock=null;
  let starting=false,stopping=false,startupTask=null,startupAbort=null,playbackProbe=null,manualStartWaiting=false,dataStartWaiting=false;
  let motorMayRun=false,coupled=false,stopTask=null,stopConfirmed=false;
+ let speedTask=null,speedAbort=null,speedTarget=null,speedTargetAt=0;
  const tv=window.VirtualWalkingNative?new (window.VirtualWalkingCast.RoutedController||window.VirtualWalkingCast.CastController)({rpc:window.VirtualWalkingNative.rpc,onChange:()=>{renderTV();}}):null;
  function renderTV(){
   const node=$('tvStatus');if(!node||!tv)return;
@@ -60,7 +61,13 @@
   try{wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>{wakeLock=null;},{once:true});}catch{}
  }
  function renderWorkout(){
+  if(speedTarget!==null&&performance.now()-speedTargetAt>=8000){speedTarget=null;announce('Das angeforderte Tempo wurde noch nicht vom Laufband gemeldet. Bitte die Anzeige am Gerät prüfen.',true);}
   text('speed',freshSpeed()&&Number.isFinite(speed)?decimal(speed):'—');
+  const canAdjust=!!workout?.running&&!starting&&!stopping&&!document.hidden&&freshSpeed()&&speed>0&&bt.canSetSpeed&&!speedTask&&speedTarget===null;
+  $('speedDown').disabled=!canAdjust||C.nextSpeed(speed,-1,bt.speedRange)===null;
+  $('speedUp').disabled=!canAdjust||C.nextSpeed(speed,1,bt.speedRange)===null;
+  const speedHint=speedTarget!==null?'Tempo angefordert: '+decimal(speedTarget)+' km/h. Warte auf Laufbanddaten.':bt.connected?(bt.speedIssue||''):'';
+  text('speedControlStatus',speedHint);$('speedControlStatus').hidden=!speedHint;
   $('distance').replaceChildren(document.createTextNode(decimal(workout?.distanceKm||0,2)+' '),unit('km'));
   text('duration',C.formatTime(workout?.seconds||0));
   $('average').replaceChildren(document.createTextNode(decimal(workout?.averageKmh||0)+' '),unit('km/h'));
@@ -90,7 +97,8 @@
  function requestPlayback(signal,hold=false){
   if(tv?.active){
    if(videoKind!=='youtube')return Promise.reject(Error('Dieser TV-Baustein übernimmt bestehende YouTube-TV-Sitzungen. Bitte ein YouTube-Laufvideo wählen.'));
-   return (hold?tv.prepare(signal):tv.play(signal)).then(()=>{if(!hold){wantedVideo=true;beltPaused=false;}});
+   const opts=settings(),initialRate=opts.sync&&freshSpeed()&&speed>0?C.targetRate(speed,opts.reference):1;
+   return (hold?tv.prepare(signal):tv.play(signal,initialRate)).then(()=>{if(!hold){wantedVideo=true;beltPaused=false;}});
   }
   if(videoKind==='none')return Promise.reject(Error('Bitte zuerst ein Laufvideo wählen.'));
   if(videoKind==='youtube'&&!youtubeReady)return Promise.reject(Error('Bitte warten, bis das YouTube-Video bereit ist.'));
@@ -165,10 +173,12 @@
   })();
  }
  function pause(reason='Training und Video pausiert.'){
+  cancelSpeedAdjustment();
   if(workout?.running)workout.pause(performance.now(),speed,freshSpeed());
   pauseVideo();keepAwake(false);announce(reason);renderWorkout();
  }
  function finishRecording(){
+  cancelSpeedAdjustment();
   if(!workout)return;
   if(workout.running)workout.pause(performance.now(),speed,freshSpeed());
   const record={date:workout.startedAt,duration:Math.round(workout.seconds),km:Number(workout.distanceKm.toFixed(3)),averageSpeed:Number(workout.averageKmh.toFixed(2)),calories:C.calories(Number($('weight').value),workout.averageKmh,workout.seconds),route:videoName||'Ohne Laufvideo',device:bt.device?.name||'FTMS-Laufband'};
@@ -189,6 +199,7 @@
   stopping=false;renderWorkout();
  }
  function connectionChanged(info){
+  if(!info.connected)cancelSpeedAdjustment();
   bleReady=info.connected;
   $('connectionDot').classList.toggle('active',info.connected);$('connect').hidden=info.connected;$('disconnect').hidden=!info.connected;
   text('connectionStatus',info.connected?'Verbunden':'Nicht verbunden');
@@ -205,15 +216,17 @@
  function telemetry(data){
   const now=performance.now();if(workout?.running)workout.tick(now,speed,freshSpeed());
   if(Number.isFinite(data.speed)){const previousSpeed=speed;speed=data.speed;lastSpeedAt=now;lastDataAt=now;
+   if(speedTarget!==null&&Math.abs(Math.round(speed*100)-Math.round(speedTarget*100))<Math.max(1,(bt.speedRange?.increment||1)/2))speedTarget=null;
    // A physical treadmill start is a valid start event even without pressing the app button.
    // Trigger only on the stopped-to-moving transition, never on every telemetry packet.
-   if(speed<.1)motionStartArmed=true;
+   if(speed<.1){motionStartArmed=true;cancelSpeedAdjustment();}
    if(bleReady&&motionStartArmed&&bt.connected&&!starting&&!stopping&&!workout?.running&&videoKind!=='none'&&(!Number.isFinite(previousSpeed)||previousSpeed<.1)&&speed>=.2)begin();
   }
   if(Number.isFinite(data.distanceKm)){nativeDistance=data.distanceKm;workout?.telemetry(nativeDistance);}
   lastDataAt=now;renderWorkout();syncVideo();
  }
  function machineStatus(status){
+  if([0x02,0x03,0xff].includes(status.code))cancelSpeedAdjustment();
   if(status.code===0x03||(status.code===0x02&&status.reason===0x01)){motorMayRun=false;startupAbort?.abort();speed=0;if(workout)finishRecording();else pauseVideo();announce(status.code===0x03?'Sicherheitsstopp erkannt. Die laufende Einheit wurde beendet.':'Laufband-Stopp erkannt. Die laufende Einheit wurde beendet.');}
   else if(status.code===0x02&&status.reason===0x02){startupAbort?.abort();speed=0;if(workout?.running)pause('Laufband pausiert – Aufzeichnung und Video pausiert.');else pauseVideo();}
   else if(status.code===0x04&&motionStartArmed&&!starting&&!stopping&&videoKind!=='none'&&bt.connected)begin();
@@ -221,6 +234,21 @@
   renderWorkout();syncVideo();
  }
  const bt=new window.VirtualWalkingBluetooth.FTMSClient({bluetooth:navigator.bluetooth,onConnection:connectionChanged,onData:telemetry,onStatus:machineStatus,onError:error=>announce(C.errorText(error),true)});
+ function cancelSpeedAdjustment(){speedAbort?.abort();speedTarget=null;}
+ function adjustSpeed(direction){
+  const button=$(direction>0?'speedUp':'speedDown');if(button.disabled)return;
+  const target=C.nextSpeed(speed,direction,bt.speedRange);if(target===null)return;
+  const controller=new AbortController();speedAbort=controller;speedTarget=target;speedTargetAt=performance.now();
+  speedTask=(async()=>{
+   try{
+    await bt.setSpeed(target,{shouldSend:()=>!controller.signal.aborted&&!!workout?.running&&!starting&&!stopping&&!document.hidden&&freshSpeed()&&speed>0,onSent:()=>{motorMayRun=true;coupled=true;stopConfirmed=false;}});
+    if(!controller.signal.aborted)announce(speedTarget===null?'Laufbandtempo bestätigt.':'Tempo angefordert: '+decimal(target)+' km/h. Warte auf die gemeldete Geschwindigkeit.');
+   }catch(error){if(!controller.signal.aborted){speedTarget=null;announce(C.errorText(error),true);}}
+   finally{speedTask=null;if(speedAbort===controller)speedAbort=null;renderWorkout();}
+  })();renderWorkout();
+ }
+ $('speedDown').addEventListener('click',()=>adjustSpeed(-1));
+ $('speedUp').addEventListener('click',()=>adjustSpeed(1));
  $('browserNotice').hidden=!!navigator.bluetooth?.requestDevice;
  $('connect').addEventListener('click',async()=>{
   if(!navigator.bluetooth?.requestDevice){$('browserNotice').hidden=false;announce('Für Bluetooth bitte diese Seite in Bluefy öffnen.',true);return;}

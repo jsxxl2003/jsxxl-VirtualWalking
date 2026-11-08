@@ -7,18 +7,18 @@
   <meta name="description" content="VirtualWalking für iPhone und Cast: FTMS-Laufbanddaten lesen, Laufvideos ans Tempo anpassen und Training lokal aufzeichnen.">
   <meta name="apple-mobile-web-app-title" content="VirtualWalking">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>VirtualWalking iPhone · Testversion 0.4.14</title>
+  <title>VirtualWalking iPhone · Testversion 0.4.15</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=0.4.14">
-  <script src="core.js?v=0.4.14" defer></script>
-  <script src="bluetooth.js?v=0.4.14" defer></script>
-  <script src="joint-start.js?v=0.4.14" defer></script>
-  <script src="app.js?v=0.4.14" defer></script>
+  <link rel="stylesheet" href="styles.css?v=0.4.15">
+  <script src="core.js?v=0.4.15" defer></script>
+  <script src="bluetooth.js?v=0.4.15" defer></script>
+  <script src="joint-start.js?v=0.4.15" defer></script>
+  <script src="app.js?v=0.4.15" defer></script>
 </head>
 <body>
   <div class="app-shell">
     <header class="app-header">
-      <div class="brand"><img src="icon.svg" alt="" width="34" height="34"><div><strong>VirtualWalking</strong><small>iPhone · Native Cast-Entwicklung 0.4.14</small></div></div>
+      <div class="brand"><img src="icon.svg" alt="" width="34" height="34"><div><strong>VirtualWalking</strong><small>iPhone · Native Cast-Entwicklung 0.4.15</small></div></div>
       <span id="controlMode" class="read-badge">FTMS · Lesemodus</span>
     </header>
     <p id="tvStatus" class="notice" role="status">TV: Über das Cast-Symbol oben verbinden.</p>
@@ -63,6 +63,8 @@
       <section class="training-card card" aria-labelledby="trainingHeading">
         <div class="section-heading"><h2 id="trainingHeading">Dein Training</h2><span id="trainingStatus" class="small-badge">Bereit</span></div>
         <div class="speed-stat"><span>GESCHWINDIGKEIT</span><div><strong id="speed">—</strong><small>km/h</small></div></div>
+        <div class="speed-actions"><button id="speedDown" class="secondary" type="button" aria-label="Laufbandgeschwindigkeit senken" disabled>− Langsamer</button><button id="speedUp" class="secondary" type="button" aria-label="Laufbandgeschwindigkeit erhöhen" disabled>+ Schneller</button></div>
+        <p id="speedControlStatus" class="small-note" role="status" hidden></p>
         <div class="stats-grid">
           <div><span>Strecke</span><strong id="distance">0,00 <small>km</small></strong></div>
           <div><span>Trainingszeit</span><strong id="duration">00:00</strong></div>
@@ -98,7 +100,7 @@
         <div class="history-actions"><button id="export" class="secondary" type="button">CSV exportieren</button><button id="clearHistory" class="quiet" type="button">Historie löschen</button></div>
       </details>
     </div>
-    <footer>Trainingsdaten und persönliche Angaben bleiben in diesem Browser.<br>iPhone-Testversion 0.4.14 · Gemeinsamer Start mit kompatiblen FTMS-Laufbändern</footer>
+    <footer>Trainingsdaten und persönliche Angaben bleiben in diesem Browser.<br>iPhone-Testversion 0.4.15 · Gemeinsamer Start mit kompatiblen FTMS-Laufbändern</footer>
   </div>
 </body>
 </html>

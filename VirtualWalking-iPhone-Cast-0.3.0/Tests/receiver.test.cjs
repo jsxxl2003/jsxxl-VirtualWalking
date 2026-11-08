@@ -75,10 +75,17 @@ test('direct receiver prepares and pauses video before training, then resumes an
  const {controller:c,calls}=fixture();
  await c.prepare(new AbortController().signal);
  assert.equal(c.playing,false);assert.equal(c.fresh(),true);
- assert.deepEqual(calls.filter(x=>x[0]!=='tv.receiver.status').map(x=>x[0]),['tv.receiver.play','tv.receiver.pause']);
+ assert.deepEqual(calls.filter(x=>x[0]!=='tv.receiver.status').map(x=>x[0]),['tv.receiver.rate','tv.receiver.play','tv.receiver.pause']);
  await c.play();assert.equal(c.playing,true);
  await c.setRate(.5);assert.equal(c.confirmedRate,.5);assert.equal(c.rate,.5);
  await c.stop();assert.equal(calls.at(-1)[0],'tv.receiver.stop');
+});
+test('TV preparation resets a retained slow rate and resume applies the current walking rate first',async()=>{
+ const {controller:c,calls,status}=fixture();status.actualRate=.5;
+ await c.prepare();assert.equal(status.actualRate,1);
+ const before=calls.length;await c.play(undefined,1.5);
+ assert.deepEqual(calls.slice(before).filter(x=>x[0]!=='tv.receiver.status'),[['tv.receiver.rate',{value:1.5}],['tv.receiver.resume',{}]]);
+ assert.equal(c.rate,1.5);assert.equal(c.playing,true);
 });
 test('HTTP acknowledgement cannot confirm a stale or wrong player',()=>{
  const {controller:c,status}=fixture();c.accept({...status,playerVideoId:'abcdefghijk',playerState:1});assert.equal(c.playing,false);

@@ -2,12 +2,13 @@
 (function(root){
  const core=typeof module!=='undefined'&&module.exports?require('./core.js'):root.VirtualWalkingCore;
  class FTMSClient{
-  constructor({bluetooth,onConnection=()=>{},onData=()=>{},onStatus=()=>{},onError=()=>{},commandTimeout=15000}){this.bluetooth=bluetooth;this.onConnection=onConnection;this.onData=onData;this.onStatus=onStatus;this.onError=onError;this.device=null;this.listeners=[];this.pending=false;this.control=null;this.controlWriter=null;this.controlIssue='';this.controlGranted=false;this.controlDenied=false;this.uncertain=false;this.uncertainCommand=null;this.lastControlError='';this.operation=null;this.commandTimeout=commandTimeout;this.starting=false;}
+  constructor({bluetooth,onConnection=()=>{},onData=()=>{},onStatus=()=>{},onError=()=>{},commandTimeout=15000}){this.bluetooth=bluetooth;this.onConnection=onConnection;this.onData=onData;this.onStatus=onStatus;this.onError=onError;this.device=null;this.listeners=[];this.pending=false;this.control=null;this.controlWriter=null;this.controlIssue='';this.controlGranted=false;this.controlDenied=false;this.uncertain=false;this.uncertainCommand=null;this.lastControlError='';this.operation=null;this.commandTimeout=commandTimeout;this.starting=false;this.speed=null;this.speedAt=0;this.speedRange=null;this.speedIssue='';}
   get connected(){return !!this.device?.gatt?.connected;}
   get canControl(){return this.connected&&!!this.control;}
+  get canSetSpeed(){return this.canControl&&!!this.speedRange&&!this.controlDenied&&!this.uncertain&&!this.starting&&!this.operation&&Number.isFinite(this.speed)&&this.speed>0&&Date.now()-this.speedAt<5000;}
   get startBlockedReason(){
    if(!this.uncertain)return '';
-   return this.uncertainCommand===0?'Die Steuerfreigabe ist fehlgeschlagen. Es wurde kein Laufband-Startbefehl gesendet. Bitte Bluetooth neu verbinden. '+this.lastControlError:'Unklarer Laufband-Zustand nach einem unbestätigten Start-/Stoppbefehl. Bitte am Gerät prüfen und Bluetooth neu verbinden.';
+   return this.uncertainCommand===0?'Die Steuerfreigabe ist fehlgeschlagen. Es wurde kein Laufband-Startbefehl gesendet. Bitte Bluetooth neu verbinden. '+this.lastControlError:'Unklarer Laufband-Zustand nach einem unbestätigten Motorbefehl. Bitte am Gerät prüfen und Bluetooth neu verbinden.';
   }
   async connect(){
    if(this.pending)return;
@@ -20,7 +21,7 @@
     const closed=()=>{if(this.device===device)this.disconnect();};device.addEventListener('gattserverdisconnected',closed);this.listeners.push([device,'gattserverdisconnected',closed]);
     const server=await device.gatt.connect(),service=await server.getPrimaryService(core.FTMS);
     const data=await service.getCharacteristic(core.TREADMILL_DATA);
-    const read=event=>{try{this.onData(core.parseTreadmillData(event.target.value));}catch(error){this.onError(error);}};
+    const read=event=>{try{const value=core.parseTreadmillData(event.target.value);if(Number.isFinite(value.speed)){this.speed=value.speed;this.speedAt=Date.now();}this.onData(value);}catch(error){this.onError(error);}};
     data.addEventListener('characteristicvaluechanged',read);this.listeners.push([data,'characteristicvaluechanged',read]);await data.startNotifications();
     try{
      const status=await service.getCharacteristic(core.MACHINE_STATUS);
@@ -62,6 +63,12 @@
      const ids=channels.map(id=>id.replace(/^0000([0-9a-f]{4})-0000-1000-8000-00805f9b34fb$/,'$1')).slice(0,16);
      this.controlIssue=stage+': '+(error?.name&&error.name!=='Error'?error.name+' – ':'')+detail+(ids.length?' · FTMS-Kanäle: '+ids.join(', '):'');
     }
+    // Optional speed capabilities never prevent the proven start/stop connection.
+    try{
+     const features=await (await service.getCharacteristic(core.MACHINE_FEATURE)).readValue();
+     const range=await (await service.getCharacteristic(core.SPEED_RANGE)).readValue();
+     if(this.device===device)this.speedRange=core.parseSpeedRange(features,range);
+    }catch(error){if(this.device===device){this.speedRange=null;this.speedIssue='Tempo-Tasten nicht verfügbar: '+core.errorText(error);}}
     if(this.device!==device||!device.gatt.connected)throw Error('Die Bluetooth-Verbindung wurde unterbrochen.');
     this.onConnection({connected:true,id:device.id||'',name:device.name||'Unbenanntes FTMS-Laufband',canControl:this.canControl});
     return device;
@@ -69,13 +76,15 @@
    finally{this.pending=false;}
   }
   procedure(code,parameters=[],beforeWrite=()=>{}){
-   // Intentionally no speed, incline, reset, or vendor-specific commands.
-   if(!((code===0x00||code===0x07)&&parameters.length===0)&&!(code===0x08&&parameters.length===1&&[1,2].includes(parameters[0])))return Promise.reject(Error('Nicht erlaubter FTMS-Befehl.'));
+   // Only explicit target speed, Request Control, Start and Pause/Stop are allowed.
+   const target=parameters[0]|(parameters[1]<<8),range=this.speedRange;
+   const validSpeed=code===2&&parameters.length===2&&parameters.every(n=>Number.isInteger(n)&&n>=0&&n<=255)&&this.controlGranted&&range&&target>0&&target>=range.min&&target<=range.max&&(target-range.min)%range.increment===0;
+   if(!((code===0x00||code===0x07)&&parameters.length===0)&&!(code===0x08&&parameters.length===1&&[1,2].includes(parameters[0]))&&!validSpeed)return Promise.reject(Error('Nicht erlaubter FTMS-Befehl.'));
    if(!this.canControl)return Promise.reject(Error('Unsere App konnte den FTMS-Steuerkanal noch nicht öffnen. '+this.controlIssue));
    if(this.operation)return Promise.reject(Error('Ein Laufband-Befehl wartet noch auf Bestätigung.'));
    const point=this.control,device=this.device,writer=this.controlWriter;
-   const label=({0:'Steuerfreigabe (0x00)',7:'Laufband-Start (0x07)',8:'Laufband-Pause/Stopp (0x08)'})[code]+' / '+writer;
-   return new Promise((resolve,reject)=>{
+   const label=({0:'Steuerfreigabe (0x00)',2:'Laufband-Tempo (0x02)',7:'Laufband-Start (0x07)',8:'Laufband-Pause/Stopp (0x08)'})[code]+' / '+writer;
+   const promise=new Promise((resolve,reject)=>{
     const op={code,response:null,written:false,sent:false,finish:(...errors)=>{
      if(this.operation!==op)return;clearTimeout(op.timer);this.operation=null;
      if(errors.length)reject(Error(core.errorText(errors[0])));else resolve();
@@ -83,7 +92,7 @@
      if(this.operation!==op||this.device!==device)return;
      if(!op.written||op.response===null)return;
      if(op.response===1){if(code===0){this.controlGranted=true;this.controlDenied=false;this.controlIssue='';this.lastControlError='';}op.finish();}
-     else{if(op.response===5)this.controlGranted=false;const messages={2:'Das Laufband unterstützt diesen Start-/Stoppbefehl nicht.',3:'Das Laufband hat den Befehl als ungültig abgelehnt.',4:'Das Laufband hat den Befehl abgelehnt. Zustand und Sicherheitsschlüssel am Gerät prüfen.',5:'Das Laufband erlaubt die Steuerung gerade nicht. Andere Trainings-App trennen und am Gerät prüfen.'};const message=messages[op.response]||'Unbekannte Laufband-Antwort '+op.response;if(code===0){this.controlDenied=true;this.lastControlError=label+': '+message;this.controlIssue=this.lastControlError;}op.finish(Error(message));}
+     else{if(op.response===5){this.controlGranted=false;this.controlDenied=true;}if(code===2&&op.response===2)this.speedRange=null;const messages={2:'Das Laufband unterstützt diesen Motorbefehl nicht.',3:'Das Laufband hat den Befehl als ungültig abgelehnt.',4:'Das Laufband hat den Befehl abgelehnt. Zustand und Sicherheitsschlüssel am Gerät prüfen.',5:'Das Laufband erlaubt die Steuerung gerade nicht. Andere Trainings-App trennen und am Gerät prüfen.'};const message=messages[op.response]||'Unbekannte Laufband-Antwort '+op.response;if(code===0){this.controlDenied=true;this.lastControlError=label+': '+message;this.controlIssue=this.lastControlError;}op.finish(Error(message));}
     }};
     const fail=error=>{
      if(this.operation!==op||this.device!==device)return;
@@ -91,13 +100,14 @@
      if(op.sent){this.uncertain=true;this.uncertainCommand=code;this.lastControlError=detail;if(code===0)this.controlIssue=detail;}
      op.finish(Error(detail));
     };
-    this.operation=op;op.timer=setTimeout(()=>fail(Error('Keine Laufband-Bestätigung. Bitte Bluetooth neu verbinden.')),this.commandTimeout);
+    this.operation=op;op.timer=setTimeout(()=>fail(Error('Keine Laufband-Bestätigung. Bitte Bluetooth neu verbinden.')),code===2?Math.min(4000,this.commandTimeout):this.commandTimeout);
     Promise.resolve().then(async()=>{
      if(this.operation!==op||this.device!==device||!this.connected)throw Error('Bluetooth-Verbindung unterbrochen.');
      beforeWrite();op.sent=true;
      await point[writer](Uint8Array.from([code,...parameters]));
     }).then(()=>{op.written=true;op.settle();},fail);
    });
+   this.operation.promise=promise;return promise;
   }
   async start({shouldStart=()=>true,onSent=()=>{}}={}){
    if(this.starting)throw Error('Der gemeinsame Start läuft bereits.');
@@ -108,13 +118,26 @@
    finally{this.starting=false;}
   }
   async stop(pause=false){
+   // Finish an already transmitted speed procedure before sending Stop. A speed
+   // request not yet written is cancelled, never delivered after the Stop.
+   const changing=this.operation,device=this.device;
+   if(changing?.code===2){if(!changing.sent)changing.finish(Error('Tempoänderung durch Stopp abgebrochen.'));await changing.promise.catch(()=>{});}
+   if(this.device!==device||!this.connected)throw Error('Bluetooth-Verbindung unterbrochen. Laufband am Gerät anhalten.');
    if(!this.controlGranted)throw Error('Keine Steuerfreigabe. Bitte das Laufband am Gerät anhalten.');
    await this.procedure(0x08,[pause?2:1]);
+  }
+  async setSpeed(value,{shouldSend=()=>true,onSent=()=>{}}={}){
+   if(!this.canSetSpeed)throw Error(this.speedIssue||'Tempoänderung ist erst mit aktuellen Daten eines laufenden Laufbands möglich.');
+   const target=Math.round(value*100),range=this.speedRange,device=this.device;
+   if(!Number.isFinite(value)||Math.abs(value*100-target)>.00001||target<=0||target<range.min||target>range.max||(target-range.min)%range.increment!==0)throw Error('Geschwindigkeit außerhalb der gemeldeten Laufbandgrenzen.');
+   const check=()=>{if(!shouldSend()||this.device!==device||!this.connected||this.uncertain||!Number.isFinite(this.speed)||this.speed<=0||Date.now()-this.speedAt>=5000)throw Error('Tempoänderung abgebrochen.');};
+   try{check();if(!this.controlGranted)await this.procedure(0,[],check);check();await this.procedure(2,[target&255,target>>8],()=>{check();onSent();});if(this.device===device)this.speedIssue='';}
+   catch(error){if(this.device===device)this.speedIssue=core.errorText(error);throw error;}
   }
   disconnect(){
    const device=this.device;this.device=null;
    this.operation?.finish(Error('Bluetooth-Verbindung unterbrochen. Laufband am Gerät prüfen.'));
-   this.control=null;this.controlWriter=null;this.controlIssue='';this.controlGranted=false;this.controlDenied=false;this.uncertain=false;this.uncertainCommand=null;this.lastControlError='';
+   this.control=null;this.controlWriter=null;this.controlIssue='';this.controlGranted=false;this.controlDenied=false;this.uncertain=false;this.uncertainCommand=null;this.lastControlError='';this.speed=null;this.speedAt=0;this.speedRange=null;this.speedIssue='';
    for(const [target,event,handler] of this.listeners)target.removeEventListener(event,handler);this.listeners=[];
    if(device?.gatt?.connected)device.gatt.disconnect();
    if(device)this.onConnection({connected:false});

@@ -24,8 +24,9 @@
    // Older native adapters boxed C comparisons as NSNumber 0/1. Normalize at
    // the boundary so strict capability checks cannot mistake 0 for permission.
    const flags=description.properties||{};
-   this.properties=Object.fromEntries(['write','writeWithoutResponse','notify','indicate'].map(name=>[name,flags[name]===true||flags[name]===1]));
+   this.properties=Object.fromEntries(['read','write','writeWithoutResponse','notify','indicate'].map(name=>[name,flags[name]===true||flags[name]===1]));
   }
+  async readValue(){const result=await rpc('ble.read',{deviceId:this.device.id,generation:this.device.generation,uuid:this.uuid});this.value=new DataView(Uint8Array.from(result.bytes).buffer);return this.value;}
   async startNotifications(){await rpc('ble.notify',{deviceId:this.device.id,generation:this.device.generation,uuid:this.uuid});return this;}
   async write(value,withResponse){
    const bytes=ArrayBuffer.isView(value)?new Uint8Array(value.buffer,value.byteOffset,value.byteLength):new Uint8Array(value);

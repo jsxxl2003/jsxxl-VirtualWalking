@@ -141,13 +141,20 @@
   async prepare(signal){
    if(!this.source)throw Error('Bitte ein YouTube-Laufvideo wählen.');
    this.intent='prepare';
+   this.epoch++;this.confirmedRate=null;this.rateError='';
    const epoch=this.epoch;
    this.check(signal,epoch);
+   // Preparation must not inherit the previous workout's slow playback rate.
+   await this.command('rate',{value:1},signal,epoch);
    if(this.fresh())await this.command('resume',{},signal,epoch);else await this.command('play',{id:this.source},signal,epoch);
    await this.waitFor(s=>s.playerState===1,signal,epoch);
    await this.command('pause',{},signal,epoch);await this.waitFor(s=>s.playerState===2,signal,epoch);
   }
-  async play(signal){this.intent='play';const epoch=this.epoch;this.check(signal,epoch);await this.command('resume',{},signal,epoch);await this.waitFor(s=>s.playerState===1,signal,epoch);}
+  async play(signal,initialRate){
+   this.intent='play';const epoch=this.epoch;this.check(signal,epoch);
+   if(initialRate!==undefined){if(!Number.isFinite(initialRate)||initialRate<.5||initialRate>2)throw Error('Ungültiges TV-Starttempo.');await this.command('rate',{value:initialRate},signal,epoch);this.confirmedRate=null;}
+   await this.command('resume',{},signal,epoch);await this.waitFor(s=>s.playerState===1,signal,epoch);
+  }
   pause(){
    if(this.intent==='pause'&&this.pauseTask?.epoch===this.epoch)return this.pauseTask.promise;
    this.intent='pause';this.epoch++;const operation={epoch:this.epoch};operation.promise=this.command('pause');this.pauseTask=operation;

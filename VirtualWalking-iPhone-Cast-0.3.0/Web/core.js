@@ -4,6 +4,8 @@
  const TREADMILL_DATA='00002acd-0000-1000-8000-00805f9b34fb';
  const MACHINE_STATUS='00002ada-0000-1000-8000-00805f9b34fb';
  const CONTROL_POINT='00002ad9-0000-1000-8000-00805f9b34fb';
+ const MACHINE_FEATURE='00002acc-0000-1000-8000-00805f9b34fb';
+ const SPEED_RANGE='00002ad4-0000-1000-8000-00805f9b34fb';
  const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
  function errorText(value,fallback='Der Browser hat keinen Fehlertext geliefert.',depth=0){
   if(depth>3||value===undefined||value===null)return fallback;
@@ -26,6 +28,20 @@
   return {speed,distanceKm,flags};
  }
  function targetRate(speed,reference){return clamp(Number.isFinite(speed)&&Number.isFinite(reference)&&reference>0?speed/reference:1,.5,2);}
+ function parseSpeedRange(features,range){
+  if(!(features instanceof DataView)||features.byteLength<8||!(features.getUint32(4,true)&1))throw Error('Das Laufband meldet keine FTMS-Geschwindigkeitssteuerung.');
+  if(!(range instanceof DataView)||range.byteLength!==6)throw Error('Das Laufband meldet keine gültigen Geschwindigkeitsgrenzen.');
+  const min=range.getUint16(0,true),max=range.getUint16(2,true),increment=range.getUint16(4,true);
+  if(max<=min||!increment||increment>max-min)throw Error('Ungültige Geschwindigkeitsgrenzen des Laufbands.');
+  return {min,max,increment};
+ }
+ function nextSpeed(speed,direction,range){
+  if(!Number.isFinite(speed)||speed<=0||![-1,1].includes(direction)||!range)return null;
+  const raw=Math.round(speed*100),{min,max,increment}=range,steps=Math.max(1,Math.ceil(10/increment));
+  const index=(raw-min)/increment;
+  const target=min+((direction>0?Math.floor(index):Math.ceil(index))+direction*steps)*increment;
+  return target>0&&target>=min&&target<=max&&(target-raw)*direction>0?target/100:null;
+ }
  function nearestRate(target,rates){const allowed=[...new Set(rates.filter(n=>Number.isFinite(n)&&n>0))];if(!allowed.length)return null;return allowed.reduce((best,n)=>Math.abs(n-target)<Math.abs(best-target)?n:best);}
  function formatTime(seconds){seconds=Math.max(0,Math.floor(seconds));const h=Math.floor(seconds/3600),m=Math.floor(seconds%3600/60),s=seconds%60;return h?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;}
  function calories(weight,averageKmh,seconds){if(!Number.isFinite(weight)||weight<25||weight>300)return null;const met=averageKmh<1?1:averageKmh<3?2.5:averageKmh<5?3.5:averageKmh<6.5?4.3:averageKmh<8?6:8.3;return Math.round(met*3.5*weight/200*(seconds/60));}
@@ -39,7 +55,7 @@
   get distanceKm(){return Math.max(0,this.nativeSeen?this.nativeKm:this.estimatedKm);}
   get averageKmh(){return this.elapsedMs?this.speedIntegral/this.elapsedMs:0;}
  }
- const api={FTMS,TREADMILL_DATA,MACHINE_STATUS,CONTROL_POINT,errorText,parseTreadmillData,targetRate,nearestRate,formatTime,calories,Workout};
+ const api={FTMS,TREADMILL_DATA,MACHINE_STATUS,CONTROL_POINT,MACHINE_FEATURE,SPEED_RANGE,errorText,parseTreadmillData,parseSpeedRange,nextSpeed,targetRate,nearestRate,formatTime,calories,Workout};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;
  root.VirtualWalkingCore=api;
 })(typeof window!=='undefined'?window:globalThis);

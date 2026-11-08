@@ -2,6 +2,31 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const {app,flush}=require('./app-fixture.cjs');
 const last={id:'M7lc1UVf-VE',title:'Gespeicherte Laufstrecke'};
+test('starting TV training at reference speed does not resume the previous half-speed playback',async t=>{
+ const a=app(t,{nativeBLE:true,nativeReceiver:true,initialTVRate:.5});a.click('connect');await flush();a.loadYoutube();await flush();a.sample(0);a.click('start');await flush();a.sample(4);await flush();
+ assert.equal(a.el('trainingStatus').textContent,'Aufzeichnung läuft');assert.deepEqual(a.resumedRates,[1]);
+});
+test('an immediate Pause cancels a speed tap before it reaches the native motor transport',async t=>{
+ const a=app(t,{nativeBLE:true,nativeReceiver:true});a.click('connect');await flush();a.loadYoutube();await flush();a.sample(0);a.click('start');await flush();a.sample(2);await flush();
+ a.click('speedUp');a.click('pause');await flush();
+ assert.equal(a.nativeWrites.some(bytes=>bytes[0]===2),false);assert.deepEqual(a.nativeWrites.at(-1),[8,2]);assert.equal(a.el('trainingStatus').textContent,'Pausiert');
+});
+test('the two speed buttons change belt speed only during training and wait for actual telemetry',async t=>{
+ const a=app(t,{nativeBLE:true,nativeReceiver:true,nativeWriteWithoutResponse:true});
+ assert.equal(a.el('speedUp').disabled,true);a.click('connect');await flush();a.loadYoutube();await flush();a.sample(0);a.click('start');await flush();a.sample(2);await flush();
+ assert.equal(a.el('speedUp').disabled,false);assert.equal(a.el('speedDown').disabled,false);
+ a.click('speedUp');await flush();assert.deepEqual(a.nativeWrites.at(-1),[2,210,0]);assert.equal(a.el('speed').textContent,'2,0');assert.equal(a.el('speedUp').disabled,true);
+ const count=a.nativeWrites.length;a.click('speedUp');await flush();assert.equal(a.nativeWrites.length,count);
+ a.sample(2.1);await flush();assert.equal(a.el('speed').textContent,'2,1');assert.equal(a.el('speedDown').disabled,false);
+ a.click('speedDown');await flush();assert.deepEqual(a.nativeWrites.at(-1),[2,200,0]);a.sample(2);await flush();
+ a.click('pause');await flush();assert.equal(a.el('speedUp').disabled,true);assert.equal(a.el('speedDown').disabled,true);assert.deepEqual(a.nativeWrites.at(-1),[8,2]);
+});
+test('speed buttons stay disabled at reported boundaries and when speed support is absent',async t=>{
+ const a=app(t,{nativeBLE:true,nativeReceiver:true});a.click('connect');await flush();a.loadYoutube();await flush();a.sample(6);await flush();
+ assert.equal(a.el('speedUp').disabled,true);assert.equal(a.el('speedDown').disabled,false);a.sample(.5);await flush();assert.equal(a.el('speedDown').disabled,true);
+ const b=app(t,{nativeBLE:true,nativeReceiver:true,nativeSpeedSupported:false});b.click('connect');await flush();b.loadYoutube();await flush();b.sample(2);await flush();
+ assert.equal(b.el('speedUp').disabled,true);assert.match(b.el('speedControlStatus').textContent,/keine FTMS/);
+});
 test('the training button can start and pause a native write-without-response treadmill after actual FTMS acknowledgements',async t=>{
  const a=app(t,{nativeBLE:true,nativeReceiver:true,nativeWriteWithoutResponse:true});a.click('connect');await flush();a.loadYoutube();await flush();a.sample(0);a.click('start');await flush();
  assert.equal(a.driver().controlGranted,true);assert.equal(a.calls.filter(x=>x==='motor-start').length,1);

@@ -2,7 +2,7 @@
 
 ## Aktueller Stand
 
-- iPhone-App: **0.4.14, Build 17**; Android-TV-Empfänger: **0.1.5, Build 6**.
+- iPhone-App: **0.4.15, Build 18**; Android-TV-Empfänger: **0.1.5, Build 6**.
 - Aktueller TV-Weg: eigener VirtualWalking-Empfänger auf der waipu.tv Box,
   HTTP-Port 8765. Die Box ist wieder per LAN verbunden; im Vodafone-Router
   ist 192.168.0.32 reserviert und am TV bestätigt. Zwischenzeitlich wurde
@@ -11,6 +11,58 @@
   `fix/tv-player-identity-0.1.1` sind Grundlage dieses gemeinsamen Stands.
 
 ## Behobene Fehler
+
+### Erweiterung 0.4.15: Tempo-Tasten und TV-Starttempo
+
+Der Nutzer hat bestätigt: Mit iPhone 0.4.14 und TV-Empfänger 0.1.5 funktioniert
+alles, einschließlich des zuvor geprüften gemeinsamen Starts. Diese Bestätigung
+ersetzt den bisherigen offenen Gerätetest für diesen älteren Stand. Die neuen
+Änderungen von 0.4.15 sind noch nicht physisch am WELLFIT geprüft.
+
+Unter der tatsächlichen Geschwindigkeitsanzeige stehen jetzt genau zwei Tasten:
+„− Langsamer“ und „+ Schneller“. Ein Tastendruck ändert das Laufbandtempo um
+0,1 km/h oder die kleinste dafür passende, vom Gerät unterstützte Schrittweite.
+Die Anzeige bleibt bei der wirklich gemeldeten Geschwindigkeit. Bis ein Ziel
+bestätigt zurückgemeldet wird, wird kein weiterer Tastendruck gesendet. Es gibt
+keine Haltewiederholung und keinen automatischen erneuten Versuch.
+
+Zusätzlich werden ausschließlich die lesbaren FTMS-Kanäle 2ACC und 2AD4 abgefragt.
+Ohne das angebotene Target-Speed-Merkmal und gültige Min-/Max-/Schrittgrenzen
+bleiben nur die neuen Tempo-Tasten gesperrt; der bewährte Start-/Stoppablauf
+bleibt verfügbar. Der Sender nutzt Opcode 0x02, UINT16 Little Endian in 0,01 km/h,
+und verlangt wie bisher die passende tatsächliche FTMS-Antwort 0x80. Falls nötig,
+fordert ein ausdrücklicher Tempo-Tastendruck zuerst die Steuerfreigabe 0x00 an;
+er sendet niemals den Motorstart 0x07. Änderung nur während laufender Aufzeichnung
+mit aktuellen, positiven Bewegungsdaten. Kein Anfahren aus dem Stillstand.
+
+Die native Befehlsprüfung validiert Tempoziele nochmals unabhängig mit den
+wirklich eingelesenen Gerätewerten. Zero, nicht passende Schrittwerte und Werte
+außerhalb der Grenzen werden nicht übertragen. Ohne GATT-Bestätigung werden
+Tempoänderungen genauso wie Starts nie für spätere Sendebereitschaft eingereiht.
+Pause, Ende, Stillstand, Sicherheitsstopp, Trennung und Hintergrundwechsel
+verwerfen noch nicht gesendete Tempoänderungen. Ein bereits übertragener
+Tempo-Befehl wird vor dem nächsten Stopp protokollgerecht abgeschlossen oder
+mit begrenzter Wartezeit als unbestätigt behandelt; keine parallelen FTMS-
+Prozeduren. Die App bleibt kein Ersatz für den Notstopp am Gerät.
+
+Zum TV-Starttempo: Auf dem vorherigen Quellstand wurde nachgestellt, dass ein
+zuvor gesetztes 0,50× beim Vorbereiten und Fortsetzen erhalten bleibt. Während
+des Startablaufs übersprang die normale Temposynchronisierung ihre Aktualisierung.
+Jetzt setzt die Vorbereitung ausdrücklich 1×; vor der eigentlichen Fortsetzung
+wird bei aktiver Synchronisierung das Tempo aus der aktuellen Bandgeschwindigkeit
+und der vorhandenen Referenzgeschwindigkeit gesetzt. Mit ausgeschalteter
+Synchronisierung startet es bei 1×. Die Referenzeinstellung und die spätere
+Geschwindigkeitsanpassung bleiben unverändert. Kein neuer TV-Empfänger erforderlich.
+
+80 Verhaltenstests bestehen, einschließlich der kompilierten nativen C-Prüfung
+und Abläufen über die tatsächliche JavaScript-Brücke. iPhone 0.4.15 muss noch in
+Codemagic kompiliert und auf dem realen Laufband geprüft werden.
+
+Primärquelle: Bluetooth SIG, Fitness Machine Service v1.0.1, Abschnitte 4.3.1.2,
+4.11 und 4.16.2.3 (Originaldokument als PDF-Kopie):
+https://www.fitmonster.club/SDK/FTMS_v101.pdf
+Test-Suite des Herausgebers:
+https://files.bluetooth.com/wp-content/uploads/dlm_uploads/2024/10/FTMS.TS_.p6.pdf
 
 ### Korrektur 0.4.14 und TV-Empfänger 0.1.5
 

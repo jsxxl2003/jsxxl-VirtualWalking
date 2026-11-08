@@ -1,15 +1,15 @@
 {
-  "version": "0.4.14",
-  "build": 17,
+  "version": "0.4.15",
+  "build": 18,
   "receiver_version": "0.1.5",
-  "behavior_tests_passed": 67,
-  "regressions_reproduced_before_fix": 6,
+  "behavior_tests_passed": 80,
+  "regressions_reproduced_before_fix": 1,
   "cast_wire_golden_vectors": "passed",
   "cast_wire_fuzz_cases": 10000,
   "cast_wire_address_and_undefined_sanitizers": "passed",
   "native_xcode_compile": false,
   "native_device_test": false,
-  "pending": "Build iPhone 0.4.14 in Codemagic; test actual WELLFIT advertised write modes and FTMS motor start. Install receiver 0.1.5, grant Android display-over-other-apps permission once, test return from another TV app and cancellation. Native device behavior remains unconfirmed.",
+  "pending": "Build iPhone 0.4.15 in Codemagic, then check actual WELLFIT feature/range reads, speed +/- and TV initial playback rate. Existing iPhone 0.4.14 and TV 0.1.5 operation was confirmed by the user. TV app remains 0.1.5 and needs no update.",
   "native_ble_to_training_integration": "passed with real bridge, FTMS parser, app handlers and direct receiver controller",
   "receiver_address_parser": "passed native C parser: IPv4, changed DHCP address, explicit/default port, invalid destinations",
   "receiver_address_change": "passed: response from previous destination cannot confirm the new receiver",
@@ -22,5 +22,9 @@
   "native_ble_flow_control": "source reviewed: only advertised write properties accepted; Request Control and stop may wait for readiness with bounded timeout; motor start is never deferred; disconnect and timeout clear queued data",
   "native_ble_property_serialization": "passed: 0/1 native property fixture reproduced the exact 0.4.13 writeValue error; numeric and boolean flags now produce the same writer; six regression cases failed before normalization",
   "receiver_foreground": "source reviewed: authenticated play/resume reuse singleTask activity only with system permission; status/pause/stop/rate never open it; pause/stop and a bounded timeout discard pending playback; physical Android permission and lifecycle behavior pending",
-  "receiver_foreground_confirmation": "passed: fresh player feedback from a background receiver cannot confirm playback; blocked opening reports its permission error"
+  "receiver_foreground_confirmation": "passed: fresh player feedback from a background receiver cannot confirm playback; blocked opening reports its permission error",
+  "previous_device_confirmation": "User confirmed that all functions work with iPhone 0.4.14 / TV receiver 0.1.5.",
+  "native_ftms_speed_validation": "passed compiled C allowlist: only 0/2/7/8; speed requires advertised feature bit and valid read range; reject missing/malformed capability data, out-of-range, off-grid and zero speed targets",
+  "speed_controls": "passed actual native bridge and app handlers: +/- from real telemetry, device limits, unsupported capability, no motor Start from speed command, no repeated tap until telemetry, cancellation before write, Stop after in-flight speed indication, no retry after missing FTMS acknowledgement",
+  "tv_start_rate": "reproduced inherited 0.50x rate on 0.4.14; passed reset to 1x for preparation and send current walking/reference rate before resume; configured reference speed and ongoing sync unchanged"
 }

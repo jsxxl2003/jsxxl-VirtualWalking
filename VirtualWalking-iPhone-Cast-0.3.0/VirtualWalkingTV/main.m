@@ -13,6 +13,7 @@
 #import <sys/select.h>
 #import "VWReceiverProbe.h"
 #import "VWReceiverAddress.h"
+#import "VWFTMSControl.h"
 
 typedef void (^VWReply)(id value, NSString *error, NSString *name);
 typedef void (^VWEvent)(NSDictionary *event);
@@ -102,6 +103,8 @@ static BOOL VWPhilipsDevicePublished = NO;
 @property(nonatomic, strong) NSData *queuedWriteData;
 @property(nonatomic, strong) CBCharacteristic *queuedWriteChannel;
 @property(nonatomic, assign) BOOL writeWithResponsePending;
+@property(nonatomic, strong) NSData *speedFeatures;
+@property(nonatomic, strong) NSData *speedLimits;
 @property(nonatomic, copy) VWEvent emit;
 - (void)handle:(NSString *)method params:(NSDictionary *)params reply:(VWReply)reply;
 - (void)close;
@@ -141,7 +144,7 @@ static BOOL VWPhilipsDevicePublished = NO;
     CBPeripheral *device = self.peripheral; NSUInteger generation = self.generation;
     [self.central stopScan]; device.delegate = nil;
     if (device) [self.central cancelPeripheralConnection:device];
-    self.peripheral = nil; self.service = nil; [self.channels removeAllObjects];
+    self.peripheral = nil; self.service = nil; self.speedFeatures = nil; self.speedLimits = nil; [self.channels removeAllObjects];
     for (NSString *key in self.pending.allKeys) [self finish:key value:nil error:@"Bluetooth-Verbindung getrennt." name:@"NetworkError"];
     if (device && self.emit) self.emit(@{@"type":@"ble.disconnected",@"deviceId":device.identifier.UUIDString,@"generation":@(generation)});
 }
@@ -175,6 +178,13 @@ static BOOL VWPhilipsDevicePublished = NO;
     }
     CBCharacteristic *channel = self.channels[VWString(params[@"uuid"])];
     if (self.peripheral.state != CBPeripheralStateConnected || !channel) { reply(nil,@"FTMS-Kanal nicht verbunden.",@"NetworkError"); return; }
+    if ([method isEqualToString:@"ble.read"]) {
+        BOOL allowed = [channel.UUID isEqual:[CBUUID UUIDWithString:@"2ACC"]] || [channel.UUID isEqual:[CBUUID UUIDWithString:@"2AD4"]];
+        if (!allowed || !(channel.properties & CBCharacteristicPropertyRead)) { reply(nil,@"Das Laufband bietet keine lesbaren Tempo-Eigenschaften an.",@"NotSupportedError"); return; }
+        NSString *key = [@"read:" stringByAppendingString:VWUUID(channel.UUID)];
+        if (self.pending[key]) { reply(nil,@"Lesezugriff läuft bereits.",@"InvalidStateError"); return; }
+        [self store:key reply:reply seconds:6]; [self.peripheral readValueForCharacteristic:channel]; return;
+    }
     if ([method isEqualToString:@"ble.notify"]) {
         if (!(channel.properties & (CBCharacteristicPropertyNotify | CBCharacteristicPropertyIndicate))) { reply(nil,@"Dieser FTMS-Kanal bietet keine Meldungen.",@"NotSupportedError"); return; }
         NSString *key = [@"notify:" stringByAppendingString:VWUUID(channel.UUID)];
@@ -183,13 +193,13 @@ static BOOL VWPhilipsDevicePublished = NO;
     }
     if ([method isEqualToString:@"ble.write"]) {
         NSArray *bytes = [params[@"bytes"] isKindOfClass:NSArray.class] ? params[@"bytes"] : @[];
-        NSMutableData *data = [NSMutableData new]; BOOL valid = bytes.count > 0 && bytes.count <= 2;
+        NSMutableData *data = [NSMutableData new]; BOOL valid = bytes.count > 0 && bytes.count <= 3;
         for (id value in bytes) {
             if (![value isKindOfClass:NSNumber.class] || [value doubleValue] < 0 || [value doubleValue] > 255 || floor([value doubleValue]) != [value doubleValue]) { valid = NO; break; }
             uint8_t byte = [value unsignedCharValue]; [data appendBytes:&byte length:1];
         }
         const uint8_t *b = data.bytes;
-        valid = valid && ((data.length == 1 && (b[0] == 0 || b[0] == 7)) || (data.length == 2 && b[0] == 8 && (b[1] == 1 || b[1] == 2)));
+        valid = valid && VWFTMSCommandAllowed(b, data.length, self.speedFeatures.bytes, self.speedFeatures.length, self.speedLimits.bytes, self.speedLimits.length);
         if (!valid || ![channel.UUID isEqual:[CBUUID UUIDWithString:@"2AD9"]]) { reply(nil,@"Nicht erlaubter FTMS-Befehl.",@"SecurityError"); return; }
         id responseOption = params[@"withResponse"];
         if (responseOption && ![responseOption isKindOfClass:NSNumber.class]) { reply(nil,@"Ungültiger Bluetooth-Schreibmodus.",@"TypeError"); return; }
@@ -197,9 +207,9 @@ static BOOL VWPhilipsDevicePublished = NO;
         CBCharacteristicProperties required = withResponse ? CBCharacteristicPropertyWrite : CBCharacteristicPropertyWriteWithoutResponse;
         if (!(channel.properties & required)) { reply(nil,withResponse ? @"Keine bestätigten Schreibzugriffe möglich." : @"Das Laufband bietet kein Schreiben ohne GATT-Bestätigung an.",@"NotSupportedError"); return; }
         if (self.pending[@"write"]) { reply(nil,@"Ein Bluetooth-Schreibzugriff wartet noch auf Bestätigung.",@"InvalidStateError"); return; }
-        if (!withResponse && b[0] == 7) {
-            // Never defer a motor start until after the user may have cancelled it.
-            if (!self.peripheral.canSendWriteWithoutResponse) { reply(nil,@"Bluetooth-Schreibpuffer nicht bereit. Der Motorstart wurde nicht eingereiht.",@"NetworkError"); return; }
+        if (!withResponse && (b[0] == 7 || b[0] == 2)) {
+            // Never defer a start or speed change until after the user cancels it.
+            if (!self.peripheral.canSendWriteWithoutResponse) { reply(nil,@"Bluetooth-Schreibpuffer nicht bereit. Der Motorbefehl wurde nicht eingereiht.",@"NetworkError"); return; }
             [self.peripheral writeValue:data forCharacteristic:channel type:CBCharacteristicWriteWithoutResponse];
             reply(@{@"submitted":@YES,@"withResponse":@NO},nil,nil); return;
         }
@@ -239,7 +249,7 @@ static BOOL VWPhilipsDevicePublished = NO;
     if (device != self.peripheral || !self.pending[@"connect"]) return;
     for (CBService *service in device.services) if ([service.UUID isEqual:[CBUUID UUIDWithString:@"1826"]]) { self.service = service; break; }
     if (error || !self.service) { [self finish:@"connect" value:nil error:error.localizedDescription ?: @"Kein FTMS-Dienst gefunden." name:@"NotFoundError"]; [self close]; return; }
-    [device discoverCharacteristics:@[[CBUUID UUIDWithString:@"2ACD"],[CBUUID UUIDWithString:@"2ADA"],[CBUUID UUIDWithString:@"2AD9"]] forService:self.service];
+    [device discoverCharacteristics:@[[CBUUID UUIDWithString:@"2ACD"],[CBUUID UUIDWithString:@"2ADA"],[CBUUID UUIDWithString:@"2AD9"],[CBUUID UUIDWithString:@"2ACC"],[CBUUID UUIDWithString:@"2AD4"]] forService:self.service];
 }
 - (void)peripheral:(CBPeripheral *)device didDiscoverCharacteristicsForService:(CBService *)service error:(NSError *)error {
     if (device != self.peripheral || service != self.service || !self.pending[@"connect"]) return;
@@ -248,7 +258,7 @@ static BOOL VWPhilipsDevicePublished = NO;
     for (CBCharacteristic *channel in service.characteristics) {
         NSString *uuid = VWUUID(channel.UUID); self.channels[uuid] = channel;
         // Explicit NSNumber booleans: boxing a C comparison produces JSON 0/1.
-        [descriptions addObject:@{@"uuid":uuid,@"properties":@{@"write":(channel.properties & CBCharacteristicPropertyWrite) ? @YES : @NO,@"writeWithoutResponse":(channel.properties & CBCharacteristicPropertyWriteWithoutResponse) ? @YES : @NO,@"notify":(channel.properties & CBCharacteristicPropertyNotify) ? @YES : @NO,@"indicate":(channel.properties & CBCharacteristicPropertyIndicate) ? @YES : @NO}}];
+        [descriptions addObject:@{@"uuid":uuid,@"properties":@{@"read":(channel.properties & CBCharacteristicPropertyRead) ? @YES : @NO,@"write":(channel.properties & CBCharacteristicPropertyWrite) ? @YES : @NO,@"writeWithoutResponse":(channel.properties & CBCharacteristicPropertyWriteWithoutResponse) ? @YES : @NO,@"notify":(channel.properties & CBCharacteristicPropertyNotify) ? @YES : @NO,@"indicate":(channel.properties & CBCharacteristicPropertyIndicate) ? @YES : @NO}}];
     }
     [self finish:@"connect" value:@{@"characteristics":descriptions} error:nil name:nil];
 }
@@ -264,9 +274,17 @@ static BOOL VWPhilipsDevicePublished = NO;
     if (device == self.peripheral) [self flushWriteWithoutResponse];
 }
 - (void)peripheral:(CBPeripheral *)device didUpdateValueForCharacteristic:(CBCharacteristic *)channel error:(NSError *)error {
-    if (device != self.peripheral || self.channels[VWUUID(channel.UUID)] != channel || error || !channel.value) return;
+    if (device != self.peripheral || self.channels[VWUUID(channel.UUID)] != channel) return;
+    NSString *readKey = [@"read:" stringByAppendingString:VWUUID(channel.UUID)];
+    BOOL reading = self.pending[readKey] != nil;
+    if (error || !channel.value) { if (reading) [self finish:readKey value:nil error:error.localizedDescription ?: @"Leere Tempo-Eigenschaften empfangen." name:@"NetworkError"]; return; }
     NSMutableArray *bytes = [NSMutableArray new]; const uint8_t *data = channel.value.bytes;
     for (NSUInteger i = 0; i < channel.value.length; i++) [bytes addObject:@(data[i])];
+    if (reading) {
+        if ([channel.UUID isEqual:[CBUUID UUIDWithString:@"2ACC"]]) self.speedFeatures = [channel.value copy];
+        if ([channel.UUID isEqual:[CBUUID UUIDWithString:@"2AD4"]]) self.speedLimits = [channel.value copy];
+        [self finish:readKey value:@{@"bytes":bytes} error:nil name:nil]; return;
+    }
     if (self.emit) self.emit(@{@"type":@"ble.value",@"deviceId":device.identifier.UUIDString,@"generation":@(self.generation),@"uuid":VWUUID(channel.UUID),@"bytes":bytes});
 }
 @end
@@ -395,7 +413,7 @@ static BOOL VWPhilipsDevicePublished = NO;
 }
 - (void)emit:(NSDictionary *)event { if (self.ready) [self call:@"__vwNativeEvent" value:event]; }
 - (void)viewDidLoad {
-    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.14"; self.token = NSUUID.UUID.UUIDString;
+    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.15"; self.token = NSUUID.UUID.UUIDString;
     NSURLSessionConfiguration *receiverConfig = [NSURLSessionConfiguration ephemeralSessionConfiguration];
     receiverConfig.HTTPMaximumConnectionsPerHost = 1;
     receiverConfig.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
