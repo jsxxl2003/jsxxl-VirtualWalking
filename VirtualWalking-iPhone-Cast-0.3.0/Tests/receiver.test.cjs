@@ -3,6 +3,16 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {ReceiverController,RoutedController}=require('../Web/cast.js');
 const id='M7lc1UVf-VE';
+test('changing the saved TV address invalidates a delayed response from the previous destination',async()=>{
+ let resolve;const pending=new Promise(r=>resolve=r);
+ const routed=new RoutedController({rpc:()=>pending});routed.setSource('youtube',id);
+ routed.connectReceiver('http://192.168.0.32:8765');
+ routed.connectReceiver('http://192.168.0.119:8765');
+ resolve({playerReady:true,playerState:1,actualRate:1,playerVideoId:id,feedbackAgeMs:0});
+ await new Promise(r=>setImmediate(r));assert.equal(routed.playing,false);assert.equal(routed.connected,false);
+ assert.match(routed.device,/192\.168\.0\.119/);
+ await routed.poll();assert.equal(routed.playing,true);
+});
 function fixture(){
  const calls=[];let status={playerReady:true,playerState:2,actualRate:1,playerVideoId:id,feedbackAgeMs:0};
  const controller=new ReceiverController({rpc:async(method,params)=>{

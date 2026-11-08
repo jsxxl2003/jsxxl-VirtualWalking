@@ -2,13 +2,42 @@
 
 ## Aktueller Stand
 
-- iPhone-App: **0.4.9, Build 12**; Android-TV-Empfänger: **0.1.4, Build 5**.
+- iPhone-App: **0.4.10, Build 13**; Android-TV-Empfänger: **0.1.4, Build 5**.
 - Aktueller TV-Weg: eigener VirtualWalking-Empfänger auf der waipu.tv Box,
-  HTTP-Port 8765, derzeit 192.168.0.32. Das iPhone bleibt die Steuerzentrale.
+  HTTP-Port 8765. Die TV-Anzeige vom 8. November nennt 192.168.0.119;
+  zuvor war 192.168.0.32 verwendet worden. Das iPhone bleibt die Steuerzentrale.
 - Die zuvor getrennten Arbeiten vom Entwicklungszweig
   `fix/tv-player-identity-0.1.1` sind Grundlage dieses gemeinsamen Stands.
 
 ## Behobene Fehler
+
+### Korrektur 0.4.10
+
+Die iPhone-App verwendete für den Direktverbindungsdialog und sämtliche
+TV-Befehle fest 192.168.0.32. Die Box zeigt inzwischen 192.168.0.119 an.
+Die damit verbundene Zeitüberschreitung ist anhand der TV-Anzeige und des
+bisherigen Quellcodes nachvollziehbar. Im bestehenden Dialog „waipu.tv ·
+Direkt verbinden (Android)“ gibt es jetzt ein Adressfeld. Die Adresse vom TV
+kann vollständig mit HTTP und Port oder als IPv4-Adresse eingegeben werden.
+Ohne Port wird 8765 verwendet. Ungültige Eingaben werden zurückgewiesen.
+
+Adresse und Schlüssel werden gemeinsam nach einer erfolgreichen Antwort
+des VirtualWalking-Empfängers gespeichert und bei allen folgenden Befehlen
+sowie nach App-Neustarts verwendet. Fehlgeschlagene Verbindungsversuche
+überschreiben die bestehende Paarung nicht. Vorhandene alte Schlüssel werden
+zusammen mit der alten Adresse angeboten, bis die neue Adresse bestätigt wird.
+Bei Netzwerkfehlern nennt die Meldung das tatsächlich angesprochene Ziel.
+Auch die Cast-Diagnose verwendet die gespeicherte Adresse. Die TV-Statuszeile
+zeigt das gewählte Ziel; eine verspätete Antwort des vorherigen Ziels bestätigt
+keine Wiedergabe am neu ausgewählten Empfänger.
+
+Laut iPhone-Screenshot werden inzwischen 2,0 km/h empfangen; damit ist der
+Bluetooth-Datenempfang für diesen Test bestätigt. Der vollständige Trainings-
+und TV-Ablauf nach der Adresskorrektur ist noch am Gerät zu prüfen. Auf der
+TV-Box bleibt Version 0.1.4 installiert. Es werden keine IP-Adressen am Router
+oder an den Geräten automatisch geändert. Eine DHCP-Reservierung für die Box
+im Router kann ihre Adresse dauerhaft stabil halten; das iPhone benötigt dafür
+keine feste Adresse.
 
 ### Korrektur 0.4.9
 
@@ -35,8 +64,8 @@ die TV-Wiedergabe nicht. Fehlende oder veraltete Geschwindigkeitsdaten werden
 als solche angezeigt. FTMS-Folgepakete ohne Geschwindigkeitsfeld halten einen
 alten Tempowert nicht mehr für die Aufzeichnung gültig.
 
-Der konkrete Bluetooth-Empfang am physischen WELLFIT-Laufband ist noch nicht
-bestätigt. Die Korrektur repariert nachgestellte Fehler im Startablauf; sie ist
+Zum Zeitpunkt der Korrektur 0.4.9 war der konkrete Bluetooth-Empfang am
+physischen WELLFIT-Laufband noch nicht bestätigt. Diese Korrektur repariert nachgestellte Fehler im Startablauf; sie ist
 kein Nachweis einer reparierten Funkverbindung. Die neue Anzeige unterscheidet
 eine bestehende Bluetooth-Verbindung von tatsächlich empfangenen Tempowerten.
 
@@ -67,10 +96,11 @@ bestehen; es gibt keine neuen Bedienknöpfe im Trainingsbildschirm.
 
 ## Prüfergebnis und Grenzen
 
-49 automatisierte Verhaltenstests einschließlich nativer JavaScript-Schnittstelle,
+51 automatisierte Verhaltenstests einschließlich nativer JavaScript-Schnittstelle,
 echtem FTMS-Parser, Trainingsoberfläche, TV-Controller und eingebettetem
-TV-Player-Skript bestehen. Vier neue Regressionen wurden vor der Korrektur
-nachgestellt. Der Cast-Protobuf-Parser ist im vorherigen Stand mit
+TV-Player-Skript und kompilierter nativer IPv4-Adressprüfung bestehen.
+Verspätete Rückmeldungen nach einem Adresswechsel sind abgedeckt. Der
+Cast-Protobuf-Parser ist im vorherigen Stand mit
 unabhängigen Testdaten, Grenzfällen und 10.000 Zufallsfällen geprüft.
 Die komplette iPhone-Kompilierung erfolgt in Codemagic. Der echte Test mit
 Laufband, iPhone und waipu-Box muss den gemeinsamen Stand noch bestätigen.
@@ -82,7 +112,9 @@ Laufband, iPhone und waipu-Box muss den gemeinsamen Stand noch bestätigen.
    „VirtualWalking Android TV APK“ manuell starten.
 2. In Codemagic „VirtualWalking iPhone“ von `main` bauen und die IPA wie bisher
    mit Sideloadly installieren.
-3. TV-Empfänger öffnen, Direktverbindung am iPhone herstellen, YouTube-Video
+3. TV-Empfänger öffnen, am iPhone „TV verbinden“ → „waipu.tv · Direkt verbinden
+   (Android)“ öffnen. Die aktuelle TV-Adresse (zuletzt http://192.168.0.119:8765)
+   und den Schlüssel vom TV eingeben und verbinden. YouTube-Video
    öffnen oder „Letztes YouTube-Video vorbereiten“ wählen. Das Laufband per
    Bluetooth verbinden und „Training starten“ antippen. Bei fehlender Steuerfreigabe das
    Laufband am Gerät starten; Video und Aufzeichnung warten auf die Bewegung.

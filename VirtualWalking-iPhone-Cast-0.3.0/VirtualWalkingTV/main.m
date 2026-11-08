@@ -14,6 +14,7 @@
 #import <errno.h>
 #import <sys/select.h>
 #import "VWReceiverProbe.h"
+#import "VWReceiverAddress.h"
 
 typedef void (^VWReply)(id value, NSString *error, NSString *name);
 typedef void (^VWEvent)(NSDictionary *event);
@@ -23,6 +24,20 @@ static NSString *VWString(id value) { return [value isKindOfClass:NSString.class
 static NSString *VWUUID(CBUUID *uuid) {
     NSString *value = uuid.UUIDString.lowercaseString;
     return value.length == 4 ? [NSString stringWithFormat:@"0000%@-0000-1000-8000-00805f9b34fb", value] : value;
+}
+static NSURL *VWReceiverBaseURL(NSString *input) {
+    VWReceiverAddress address;
+    if (!VWParseReceiverAddress(input.UTF8String, &address)) return nil;
+    return [NSURL URLWithString:[NSString stringWithFormat:@"http://%s:%u", address.host, address.port]];
+}
+static NSURL *VWReceiverRequestURL(NSURL *base, NSString *command, NSDictionary<NSString *, NSString *> *parameters) {
+    if (!base) return nil;
+    NSURLComponents *parts = [NSURLComponents componentsWithURL:base resolvingAgainstBaseURL:NO];
+    parts.path = [@"/" stringByAppendingString:command];
+    NSMutableArray<NSURLQueryItem *> *items = [NSMutableArray new];
+    for (NSString *name in parameters) [items addObject:[NSURLQueryItem queryItemWithName:name value:parameters[name]]];
+    parts.queryItems = items;
+    return parts.URL;
 }
 
 
@@ -370,7 +385,7 @@ static BOOL VWPhilipsDevicePublished = NO;
 }
 - (void)emit:(NSDictionary *)event { if (self.ready) [self call:@"__vwNativeEvent" value:event]; }
 - (void)viewDidLoad {
-    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.9"; self.token = NSUUID.UUID.UUIDString;
+    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.10"; self.token = NSUUID.UUID.UUIDString;
     NSString *bridgePath = [NSBundle.mainBundle pathForResource:@"native-bridge" ofType:@"js" inDirectory:@"Web"];
     NSString *bridge = [NSString stringWithContentsOfFile:bridgePath encoding:NSUTF8StringEncoding error:nil];
     NSData *tokenData = [NSJSONSerialization dataWithJSONObject:@[self.token] options:0 error:nil];
@@ -399,67 +414,88 @@ static BOOL VWPhilipsDevicePublished = NO;
     NSString *html = [NSString stringWithContentsOfFile:[NSBundle.mainBundle pathForResource:@"native" ofType:@"html" inDirectory:@"Web"] encoding:NSUTF8StringEncoding error:nil];
     [self.web loadHTMLString:html baseURL:[NSURL URLWithString:VWOrigin]];
 }
+- (NSDictionary *)receiverConnection {
+    NSDictionary *saved = [NSUserDefaults.standardUserDefaults dictionaryForKey:@"VWTVReceiverConnection"];
+    if (saved) return saved;
+    // Preserve the previous pairing until the user confirms the box's new address.
+    return @{@"address":@"http://192.168.0.32:8765", @"key":[NSUserDefaults.standardUserDefaults stringForKey:@"VWTVReceiverKey"] ?: @""};
+}
 - (void)receiverCommand:(NSString *)method params:(NSDictionary *)params reply:(VWReply)reply {
-    NSString *key = [NSUserDefaults.standardUserDefaults stringForKey:@"VWTVReceiverKey"];
-    if ([method isEqualToString:@"tv.receiver.connection"]) { reply(@{@"connected":@(key.length == 24)}, nil, nil); return; }
-    if (key.length != 24) { reply(nil, @"Zuerst waipu.tv direkt verbinden.", @"NotConnectedError"); return; }
-    NSMutableArray<NSString *> *parts = [NSMutableArray arrayWithObject:[NSString stringWithFormat:@"key=%@", key]];
+    NSDictionary *connection = [self receiverConnection];
+    NSString *key = VWString(connection[@"key"]);
+    NSURL *base = VWReceiverBaseURL(VWString(connection[@"address"]));
+    if ([method isEqualToString:@"tv.receiver.connection"]) { reply(@{@"connected":@(key.length == 24 && base != nil), @"address":base.absoluteString ?: @""}, nil, nil); return; }
+    if (key.length != 24 || !base) { reply(nil, @"Zuerst unter „TV verbinden“ die Adresse und den Schlüssel vom Fernseher eingeben.", @"NotConnectedError"); return; }
+    NSString *command = [method substringFromIndex:[@"tv.receiver." length]];
+    if (![@[@"status",@"play",@"pause",@"resume",@"stop",@"rate"] containsObject:command]) { reply(nil,@"Unbekannter TV-Befehl.",@"NotSupportedError"); return; }
+    NSMutableDictionary<NSString *, NSString *> *parts = [NSMutableDictionary dictionaryWithObject:key forKey:@"key"];
     if ([method isEqualToString:@"tv.receiver.play"]) {
         NSString *videoID = VWString(params[@"id"]);
         NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"^[A-Za-z0-9_-]{11}$" options:0 error:nil];
         if ([regex numberOfMatchesInString:videoID options:0 range:NSMakeRange(0, videoID.length)] != 1) { reply(nil, @"Ungültige YouTube-ID.", @"TypeError"); return; }
-        [parts addObject:[NSString stringWithFormat:@"id=%@", videoID]];
+        parts[@"id"] = videoID;
     }
     if ([method isEqualToString:@"tv.receiver.rate"]) {
         NSNumber *rate = [params[@"value"] isKindOfClass:NSNumber.class] ? params[@"value"] : nil;
-        if (!rate || rate.doubleValue < 0.25 || rate.doubleValue > 2.0) { reply(nil, @"Ungültiges Videotempo.", @"TypeError"); return; }
-        [parts addObject:[NSString stringWithFormat:@"value=%@", rate]];
+        if (!rate || !isfinite(rate.doubleValue) || rate.doubleValue < 0.25 || rate.doubleValue > 2.0) { reply(nil, @"Ungültiges Videotempo.", @"TypeError"); return; }
+        parts[@"value"] = rate.stringValue;
     }
-    NSString *command = [method substringFromIndex:[@"tv.receiver." length]];
-    NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"http://192.168.0.32:8765/%@?%@", command, [parts componentsJoinedByString:@"&"]]];
+    NSURL *url = VWReceiverRequestURL(base, command, parts);
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
     request.timeoutInterval = 5;
     [[[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         NSHTTPURLResponse *http = (NSHTTPURLResponse *)response;
         id json = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
         dispatch_async(dispatch_get_main_queue(), ^{
-            if (error || http.statusCode != 200) reply(nil, error.localizedDescription ?: VWString([json isKindOfClass:NSDictionary.class] ? json[@"error"] : nil), @"NetworkError");
+            if (error) reply(nil, [NSString stringWithFormat:@"TV %@:%@ nicht erreichbar: %@. Die Adresse unter „TV verbinden“ mit der Anzeige am Fernseher vergleichen.", base.host, base.port, error.localizedDescription], @"NetworkError");
+            else if (http.statusCode != 200) reply(nil, VWString([json isKindOfClass:NSDictionary.class] ? json[@"error"] : nil).length ? VWString(json[@"error"]) : [NSString stringWithFormat:@"TV antwortet mit HTTP %ld.", (long)http.statusCode], @"NetworkError");
             else reply(json ?: @{}, nil, nil);
         });
     }] resume];
 }
 - (void)connectWaipuDirect {
+    NSDictionary *connection = [self receiverConnection];
     UIAlertController *dialog = [UIAlertController alertControllerWithTitle:@"waipu.tv · Direktverbindung"
-        message:@"Schlüssel vom Fernseher eingeben. Kein Google Cast."
+        message:@"Adresse und Schlüssel vom Fernseher eingeben. Beides wird nach erfolgreicher Verbindung gespeichert."
         preferredStyle:UIAlertControllerStyleAlert];
+    [dialog addTextFieldWithConfigurationHandler:^(UITextField *field) {
+        field.placeholder = @"TV-Adresse, z. B. http://192.168.0.119:8765";
+        field.keyboardType = UIKeyboardTypeURL;
+        field.autocapitalizationType = UITextAutocapitalizationTypeNone;
+        field.autocorrectionType = UITextAutocorrectionTypeNo;
+        field.text = VWString(connection[@"address"]);
+    }];
     [dialog addTextFieldWithConfigurationHandler:^(UITextField *field) {
         field.placeholder = @"Schlüssel vom Fernseher";
         field.autocapitalizationType = UITextAutocapitalizationTypeNone;
         field.autocorrectionType = UITextAutocorrectionTypeNo;
-        field.text = [NSUserDefaults.standardUserDefaults stringForKey:@"VWTVReceiverKey"] ?: @"";
+        field.text = VWString(connection[@"key"]);
     }];
     __weak typeof(self) weakSelf = self;
     [dialog addAction:[UIAlertAction actionWithTitle:@"Abbrechen" style:UIAlertActionStyleCancel handler:nil]];
     [dialog addAction:[UIAlertAction actionWithTitle:@"Verbinden" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        NSString *key = [dialog.textFields.firstObject.text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
-        if (key.length != 24) {
-            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Schlüssel ungültig" message:@"Bitte den 24-stelligen Schlüssel vom Fernseher eingeben." preferredStyle:UIAlertControllerStyleAlert];
+        NSURL *base = VWReceiverBaseURL(dialog.textFields[0].text);
+        NSString *key = [dialog.textFields[1].text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+        if (!base || key.length != 24) {
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:!base ? @"TV-Adresse ungültig" : @"Schlüssel ungültig" message:!base ? @"Bitte die IPv4-Adresse vom Fernseher eingeben, z. B. http://192.168.0.119:8765." : @"Bitte den 24-stelligen Schlüssel vom Fernseher eingeben." preferredStyle:UIAlertControllerStyleAlert];
             [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
             [weakSelf presentViewController:alert animated:YES completion:nil]; return;
         }
-        NSString *encoded = [key stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
-        NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"http://192.168.0.32:8765/status?key=%@", encoded]];
+        NSURL *url = VWReceiverRequestURL(base, @"status", @{@"key":key});
         NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
         request.timeoutInterval = 6;
         [[[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
             NSHTTPURLResponse *http = (NSHTTPURLResponse *)response;
-            BOOL connected = !error && http.statusCode == 200;
-            if (connected) [NSUserDefaults.standardUserDefaults setObject:key forKey:@"VWTVReceiverKey"];
+            id json = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+            BOOL connected = !error && http.statusCode == 200 && [json isKindOfClass:NSDictionary.class] && [VWString(json[@"receiver"]) isEqualToString:@"VirtualWalking-TV"];
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (!weakSelf) return;
-                if (connected) [weakSelf emit:@{@"type":@"tv.receiver.connected"}];
-                NSString *message = connected ? @"Die iPhone-App ist direkt mit dem Android-TV-Empfänger verbunden." :
-                    [NSString stringWithFormat:@"Keine Verbindung: %@", error.localizedDescription ?: [NSString stringWithFormat:@"HTTP %ld", (long)http.statusCode]];
+                if (connected) {
+                    [NSUserDefaults.standardUserDefaults setObject:@{@"address":base.absoluteString,@"key":key} forKey:@"VWTVReceiverConnection"];
+                    [weakSelf emit:@{@"type":@"tv.receiver.connected",@"address":base.absoluteString}];
+                }
+                NSString *detail = error.localizedDescription ?: (http.statusCode == 403 ? @"Schlüssel ungültig. Den aktuellen Schlüssel vom Fernseher verwenden." : http.statusCode == 200 ? @"An dieser Adresse antwortet kein VirtualWalking-TV-Empfänger." : [NSString stringWithFormat:@"HTTP %ld", (long)http.statusCode]);
+                NSString *message = connected ? [NSString stringWithFormat:@"Mit %@ verbunden. Adresse und Schlüssel sind gespeichert.", base.absoluteString] : [NSString stringWithFormat:@"Keine Verbindung zu %@: %@", base.absoluteString, detail];
                 UIAlertController *result = [UIAlertController alertControllerWithTitle:connected ? @"waipu.tv verbunden" : @"Verbindung fehlgeschlagen" message:message preferredStyle:UIAlertControllerStyleAlert];
                 [result addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
                 [weakSelf presentViewController:result animated:YES completion:nil];
@@ -470,6 +506,7 @@ static BOOL VWPhilipsDevicePublished = NO;
 }
 - (void)connectTV {
     if (self.presentedViewController) return;
+    NSString *receiverHost = VWReceiverBaseURL(VWString([self receiverConnection][@"address"])).host ?: @"192.168.0.32";
     UIAlertController *choice = [UIAlertController alertControllerWithTitle:@"TV verbinden" message:nil preferredStyle:UIAlertControllerStyleActionSheet];
     __weak typeof(self) weakSelf = self;
     [choice addAction:[UIAlertAction actionWithTitle:@"waipu.tv · Letztes YouTube-Video vorbereiten" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
@@ -483,7 +520,7 @@ static BOOL VWPhilipsDevicePublished = NO;
         [weakSelf emit:@{@"type":@"training.action",@"action":@"resume"}];
     }]];
     [choice addAction:[UIAlertAction actionWithTitle:@"waipu.tv · Direkt verbinden (Android)" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { [weakSelf connectWaipuDirect]; }]];
-    [choice addAction:[UIAlertAction actionWithTitle:@"waipu.tv Box suchen (192.168.0.32)" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+    [choice addAction:[UIAlertAction actionWithTitle:[NSString stringWithFormat:@"waipu.tv Box suchen (%@)", receiverHost] style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         GCKDiscoveryManager *discovery = [GCKCastContext sharedInstance].discoveryManager;
         [discovery startDiscovery];
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -495,18 +532,18 @@ static BOOL VWPhilipsDevicePublished = NO;
                 NSString *name = device.friendlyName ?: @"Unbenannt";
                 NSString *address = device.networkAddress ? [device.networkAddress description] : @"";
                 [visible addObject:[NSString stringWithFormat:@"%@ (%@)", name, address]];
-                if ([address isEqualToString:@"192.168.0.32"] || [name.lowercaseString containsString:@"waipu"]) {
+                if ([address isEqualToString:receiverHost] || [name.lowercaseString containsString:@"waipu"]) {
                     [matches addObject:device];
                 }
             }
             // Probe on a background queue so the interface remains responsive.
             dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-                BOOL castPort = VWPortOpen(@"192.168.0.32", 8009);
-                BOOL discoveryPort = VWPortOpen(@"192.168.0.32", 8008);
+                BOOL castPort = VWPortOpen(receiverHost, 8009);
+                BOOL discoveryPort = VWPortOpen(receiverHost, 8008);
                 dispatch_async(dispatch_get_main_queue(), ^{
                     if (!weakSelf || weakSelf.presentedViewController) return;
-                    NSString *detail = [NSString stringWithFormat:@"waipu.tv 192.168.0.32\nCast-Port 8009: %@\nCast-HTTP 8008: %@\n\nSDK-Geräte: %lu\n%@",
-                        castPort ? @"Erreichbar" : @"Nicht erreichbar",
+                    NSString *detail = [NSString stringWithFormat:@"waipu.tv %@\nCast-Port 8009: %@\nCast-HTTP 8008: %@\n\nSDK-Geräte: %lu\n%@",
+                        receiverHost, castPort ? @"Erreichbar" : @"Nicht erreichbar",
                         discoveryPort ? @"Erreichbar" : @"Nicht erreichbar",
                         (unsigned long)discovery.deviceCount,
                         visible.count ? [visible componentsJoinedByString:@"\n"] : @"Keine Geräte über Cast-SDK gefunden."];
@@ -536,7 +573,7 @@ static BOOL VWPhilipsDevicePublished = NO;
         UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:probe];
         [weakSelf presentViewController:navigation animated:YES completion:^{
             probe.title = @"waipu.tv · Protokolltest";
-            probe.address.text = @"192.168.0.32";
+            probe.address.text = receiverHost;
             [probe run];
         }];
     }]];

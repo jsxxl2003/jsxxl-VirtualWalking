@@ -24,7 +24,7 @@
    if(message.action==='prepare-tv')prepareTVSelection(message.video);
    else if(message.action==='pause')pauseFromButton();
    else if(message.action==='resume')begin();
-  }else if(message.type==='tv.receiver.connected'){try{youtubePlayer?.pauseVideo();$('video').pause();}catch{}tv?.connectReceiver?.();renderTV();}
+  }else if(message.type==='tv.receiver.connected'){startupAbort?.abort();if(workout?.running)pause('TV-Verbindung geändert. Training bitte erneut starten.');try{youtubePlayer?.pauseVideo();$('video').pause();}catch{}tv?.connectReceiver?.(message.address);renderTV();}
   else if(message.type==='cast.status'){
    const wasActive=tv?.active,applies=tv?.receive(message)!==false;
    if(applies&&(starting||workout?.running)&&(wasActive||tv?.active)&&(!tv?.active||!tv.matches()||wasActive!==tv.active)){
@@ -464,5 +464,5 @@
   const local=read('lastYoutube',null);
   if(!validLastYoutube(local))offerLastYoutube(saved);
  }).catch(()=>{});
- if(tv){window.VirtualWalkingNative.rpc('cast.status').catch(()=>{});window.VirtualWalkingNative.rpc('tv.receiver.connection').then(info=>{if(info.connected)tv.connectReceiver?.();}).catch(()=>{});setInterval(()=>tv.poll?.(),1000);}
+ if(tv){window.VirtualWalkingNative.rpc('cast.status').catch(()=>{});window.VirtualWalkingNative.rpc('tv.receiver.connection').then(info=>{if(info.connected)tv.connectReceiver?.(info.address);}).catch(()=>{});setInterval(()=>tv.poll?.(),1000);}
 })();

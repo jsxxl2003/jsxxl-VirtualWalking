@@ -142,7 +142,14 @@
  }
  class RoutedController {
   constructor(options){this.cast=new CastController(options);this.receiver=new ReceiverController(options);this.route=this.cast;}
-  connectReceiver(){this.route=this.receiver;this.receiver.selected=true;this.receiver.rateError='';this.receiver.poll();}
+  connectReceiver(address){
+   const receiver=this.receiver;
+   if(typeof address==='string'&&address&&address!==receiver.address){
+    receiver.address=address;receiver.epoch++;receiver.state=null;receiver.connected=false;receiver.receivedAt=-Infinity;receiver.confirmedRate=null;
+    receiver.device='waipu.tv Box · '+address.replace(/^http:\/\//,'');
+   }
+   this.route=receiver;receiver.selected=true;receiver.rateError='';receiver.poll();
+  }
   receive(message){if(message.connected&&!this.receiver.selected)this.route=this.cast;this.cast.receive(message);return this.route===this.cast;}
   setSource(kind,value){this.cast.setSource(kind,value);this.receiver.setSource(kind,value);}
   poll(){return this.receiver.poll();}
