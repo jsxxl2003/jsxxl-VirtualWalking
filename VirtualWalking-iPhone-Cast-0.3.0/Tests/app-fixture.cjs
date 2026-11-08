@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const C=require('../Web/core.js'),{jointStart}=require('../Web/joint-start.js');
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
-function app(t,{nativeCast=false,nativeReceiver=false,canControl=true,blockedVideo=false,failedStart=false,failedControl=false,failedStop=false,delayedYoutubePause=false,storage=new Map(),nativeLastVideo=null,nativeVideoRead=null}={}){
+function app(t,{nativeCast=false,nativeReceiver=false,nativeBLE=false,canControl=true,blockedVideo=false,failedStart=false,failedControl=false,failedStop=false,delayedYoutubePause=false,storage=new Map(),nativeLastVideo=null,nativeVideoRead=null}={}){
  const calls=[],store=storage,timers=new Set(),intervals=new Map();let clock=1000,driver,intervalId=0,youtube,pendingYoutubePause;
  class Element extends EventTarget{
   constructor(){super();this.value='';this.textContent='';this.hidden=false;this.disabled=false;this.checked=false;this.classList={toggle(){}};this.files=[];}
@@ -17,7 +17,7 @@ function app(t,{nativeCast=false,nativeReceiver=false,canControl=true,blockedVid
  const window=new EventTarget();
  let remoteState='paused',remoteRate=1,remoteID=nativeReceiver?'':'M7lc1UVf-VE',remoteConnected=true;
  function sendTV(patch={}){window.dispatchEvent(new CustomEvent('vw-native',{detail:{type:'cast.status',connected:remoteConnected,applicationID:'233637DE',fresh:true,session:remoteConnected?'receiver-session':'closed',device:'Philips',media:remoteConnected?{contentID:remoteID,mediaSessionID:7,playerState:remoteState,rate:remoteRate,playingAd:false,...patch}:null}}));}
- if(nativeCast||nativeReceiver){window.VirtualWalkingCast=require('../Web/cast.js');window.VirtualWalkingNative={rpc:async(method,params={})=>{
+ if(nativeCast||nativeReceiver||nativeBLE){window.VirtualWalkingCast=require('../Web/cast.js');window.VirtualWalkingNative={rpc:async(method,params={})=>{
   if(method==='tv.receiver.connection')return {connected:nativeReceiver};
   if(method.startsWith('tv.receiver.')){calls.push(method);if(method==='tv.receiver.play'){remoteID=params.id;remoteState='playing';}if(method==='tv.receiver.pause'||method==='tv.receiver.stop')remoteState='paused';if(method==='tv.receiver.resume')remoteState='playing';if(method==='tv.receiver.rate')remoteRate=params.value;return {playerReady:true,playerState:remoteState==='playing'?1:2,playerVideoId:remoteID,actualRate:remoteRate,feedbackAgeMs:0};}
   if(method==='video.last.get')return nativeVideoRead?nativeVideoRead():nativeLastVideo;
@@ -42,9 +42,32 @@ window.VirtualWalkingCore=C;window.VirtualWalkingStart={jointStart};
   pauseVideo(){if(this.state===2)return;pendingYoutubePause=()=>{this.state=2;this.events.onStateChange({data:2});};if(!delayedYoutubePause)queueMicrotask(()=>pendingYoutubePause());}
  }};window.YT=YT;
  const context={window,document,YT,location:{origin:'https://test.example'},navigator:{bluetooth:{requestDevice(){}}},localStorage:{getItem:key=>store.get(key)??null,setItem:(key,value)=>store.set(key,value)},performance:{now:()=>clock},AbortController,URL:class extends URL{static createObjectURL(){return 'blob:local-test';}static revokeObjectURL(){}},setTimeout:(callback,delay)=>{const timer=setTimeout(callback,delay);timers.add(timer);return timer;},clearTimeout:timer=>{clearTimeout(timer);timers.delete(timer);},setInterval:(callback,delay)=>{const id=++intervalId;intervals.set(id,{callback,delay});return id;},clearInterval:id=>intervals.delete(id),confirm:()=>false,console};
- vm.runInNewContext(fs.readFileSync(require.resolve('../Web/app.js'),'utf8'),context);
+ vm.createContext(context);
+ if(nativeBLE){
+  const rpc=window.VirtualWalkingNative.rpc;let generation=0;
+  window.navigator=context.navigator;
+  window.webkit={messageHandlers:{virtualwalking:{postMessage:message=>queueMicrotask(async()=>{
+   try{
+    let result={};const {method,params}=message;
+    if(method==='ble.choose')result={id:'native-belt',name:'WELLFIT TM Linker',generation:++generation};
+    else if(method==='ble.connect')result={characteristics:[C.TREADMILL_DATA,C.MACHINE_STATUS,...(canControl?[C.CONTROL_POINT]:[])].map(uuid=>({uuid,properties:{write:uuid===C.CONTROL_POINT,notify:true,indicate:true}}))};
+    else if(method==='ble.write'){
+     const [command,reason]=params.bytes;calls.push(command===0?'request-control':command===7?'motor-start':reason===2?'motor-pause':'motor-stop');
+     window.__vwNativeEvent({type:'ble.value',deviceId:'native-belt',generation:params.generation,uuid:C.CONTROL_POINT,bytes:[0x80,command,command===0&&failedControl?5:command===7&&failedStart||command===8&&failedStop?4:1]});
+    }else if(!method.startsWith('ble.'))result=await rpc(method,params);
+    window.__vwNativeReceive({id:message.id,ok:true,result});
+   }catch(error){window.__vwNativeReceive({id:message.id,ok:false,error:{message:error.message}});}
+  })}}};
+  Object.assign(context,{EventTarget,Event,CustomEvent,DataView,Uint8Array,ArrayBuffer});
+  vm.runInContext(fs.readFileSync(require.resolve('../Web/native-bridge.js'),'utf8'),context);
+  vm.runInContext(fs.readFileSync(require.resolve('../Web/bluetooth.js'),'utf8'),context);
+  const NativeClient=window.VirtualWalkingBluetooth.FTMSClient;
+  window.VirtualWalkingBluetooth.FTMSClient=class extends NativeClient{constructor(options){super(options);driver=this;}};
+ }
+ vm.runInContext(fs.readFileSync(require.resolve('../Web/app.js'),'utf8'),context);
  t.after(()=>{window.dispatchEvent(new Event('pagehide'));for(const timer of timers)clearTimeout(timer);});
- return {sendTV,tvVideo:id=>{remoteID=id;sendTV();},tvDisconnect:()=>{remoteConnected=false;sendTV();},tickUI:()=>{for(const {callback,delay} of intervals.values())if(delay===500)callback();},calls,store,el,nativeLastVideo:()=>nativeLastVideo,driver:()=>driver,click:id=>el(id).dispatchEvent(new Event('click')),loadVideo:()=>{el('fileInput').files=[{name:'Laufstrecke.mp4'}];el('fileInput').dispatchEvent(new Event('change'));},loadYoutube:(id='M7lc1UVf-VE')=>{el('videoUrl').value='https://youtu.be/'+id;el('linkPanel').dispatchEvent(new Event('submit'));},confirmYoutubePause:()=>pendingYoutubePause?.(),youtubeUserPlay:()=>youtube.playVideo(),sample:speed=>{clock+=100;driver.options.onData({speed});for(const {callback,delay} of [...intervals.values()])if(delay===100)callback();},advance:ms=>{clock+=ms;}};
+ const packet=bytes=>{window.__vwNativeEvent({type:'ble.value',deviceId:driver.device.id,generation:driver.device.generation,uuid:C.TREADMILL_DATA,bytes});};
+ return {sendTV,nativeEvent:detail=>window.dispatchEvent(new CustomEvent('vw-native',{detail})),tvVideo:id=>{remoteID=id;sendTV();},tvDisconnect:()=>{remoteConnected=false;sendTV();},tickUI:()=>{for(const {callback,delay} of intervals.values())if(delay===500)callback();},calls,store,el,nativeLastVideo:()=>nativeLastVideo,driver:()=>driver,click:id=>el(id).dispatchEvent(new Event('click')),loadVideo:()=>{el('fileInput').files=[{name:'Laufstrecke.mp4'}];el('fileInput').dispatchEvent(new Event('change'));},loadYoutube:(id='M7lc1UVf-VE')=>{el('videoUrl').value='https://youtu.be/'+id;el('linkPanel').dispatchEvent(new Event('submit'));},confirmYoutubePause:()=>pendingYoutubePause?.(),youtubeUserPlay:()=>youtube.playVideo(),youtubeState:()=>youtube?.state,sample:speed=>{clock+=100;if(nativeBLE){const value=Math.round(speed*100);packet([0,0,value&255,value>>8]);}else driver.options.onData({speed});for(const {callback,delay} of [...intervals.values()])if(delay===100)callback();},packet,advance:ms=>{clock+=ms;}};
 }
 
 module.exports={app,flush};

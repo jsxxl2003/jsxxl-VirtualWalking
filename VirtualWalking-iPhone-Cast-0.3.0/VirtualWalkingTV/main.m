@@ -370,7 +370,7 @@ static BOOL VWPhilipsDevicePublished = NO;
 }
 - (void)emit:(NSDictionary *)event { if (self.ready) [self call:@"__vwNativeEvent" value:event]; }
 - (void)viewDidLoad {
-    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.8"; self.token = NSUUID.UUID.UUIDString;
+    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.9"; self.token = NSUUID.UUID.UUIDString;
     NSString *bridgePath = [NSBundle.mainBundle pathForResource:@"native-bridge" ofType:@"js" inDirectory:@"Web"];
     NSString *bridge = [NSString stringWithContentsOfFile:bridgePath encoding:NSUTF8StringEncoding error:nil];
     NSData *tokenData = [NSJSONSerialization dataWithJSONObject:@[self.token] options:0 error:nil];
@@ -472,30 +472,15 @@ static BOOL VWPhilipsDevicePublished = NO;
     if (self.presentedViewController) return;
     UIAlertController *choice = [UIAlertController alertControllerWithTitle:@"TV verbinden" message:nil preferredStyle:UIAlertControllerStyleActionSheet];
     __weak typeof(self) weakSelf = self;
-    [choice addAction:[UIAlertAction actionWithTitle:@"waipu.tv · Letztes YouTube-Video senden" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        NSString *videoID = VWString([NSUserDefaults.standardUserDefaults dictionaryForKey:@"VWLastYouTubeVideo"][@"id"]);
-        if (!videoID.length) {
-            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Kein Video gespeichert" message:@"Bitte zuerst ein YouTube-Video in VirtualWalking auswählen." preferredStyle:UIAlertControllerStyleAlert];
-            [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
-            [weakSelf presentViewController:alert animated:YES completion:nil]; return;
-        }
-        [weakSelf receiverCommand:@"tv.receiver.play" params:@{@"id":videoID} reply:^(id value, NSString *error, NSString *name) {
-            UIAlertController *alert = [UIAlertController alertControllerWithTitle:error ? @"TV-Befehl fehlgeschlagen" : @"Video an TV gesendet"
-                message:error ?: @"Der Empfänger hat den Videoauftrag erhalten. Ob YouTube das Video tatsächlich abspielt, muss am Fernseher geprüft werden."
-                preferredStyle:UIAlertControllerStyleAlert];
-            [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
-            [weakSelf presentViewController:alert animated:YES completion:nil];
-        }];
+    [choice addAction:[UIAlertAction actionWithTitle:@"waipu.tv · Letztes YouTube-Video vorbereiten" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        NSDictionary *saved = [NSUserDefaults.standardUserDefaults dictionaryForKey:@"VWLastYouTubeVideo"];
+        [weakSelf emit:@{@"type":@"training.action",@"action":@"prepare-tv",@"video":saved ?: @{}}];
     }]];
-    [choice addAction:[UIAlertAction actionWithTitle:@"waipu.tv · Video pausieren" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        [weakSelf receiverCommand:@"tv.receiver.pause" params:@{} reply:^(id value, NSString *error, NSString *name) {
-            if (error) { UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Pause fehlgeschlagen" message:error preferredStyle:UIAlertControllerStyleAlert]; [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]]; [weakSelf presentViewController:alert animated:YES completion:nil]; }
-        }];
+    [choice addAction:[UIAlertAction actionWithTitle:@"waipu.tv · Training pausieren" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        [weakSelf emit:@{@"type":@"training.action",@"action":@"pause"}];
     }]];
-    [choice addAction:[UIAlertAction actionWithTitle:@"waipu.tv · Video fortsetzen" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        [weakSelf receiverCommand:@"tv.receiver.resume" params:@{} reply:^(id value, NSString *error, NSString *name) {
-            if (error) { UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Fortsetzen fehlgeschlagen" message:error preferredStyle:UIAlertControllerStyleAlert]; [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]]; [weakSelf presentViewController:alert animated:YES completion:nil]; }
-        }];
+    [choice addAction:[UIAlertAction actionWithTitle:@"waipu.tv · Training fortsetzen" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        [weakSelf emit:@{@"type":@"training.action",@"action":@"resume"}];
     }]];
     [choice addAction:[UIAlertAction actionWithTitle:@"waipu.tv · Direkt verbinden (Android)" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { [weakSelf connectWaipuDirect]; }]];
     [choice addAction:[UIAlertAction actionWithTitle:@"waipu.tv Box suchen (192.168.0.32)" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {

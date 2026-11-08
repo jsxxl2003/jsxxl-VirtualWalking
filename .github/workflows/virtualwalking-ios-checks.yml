@@ -1,0 +1,28 @@
+name: VirtualWalking iPhone checks
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'VirtualWalking-iPhone-Cast-0.3.0/**'
+      - '.github/workflows/virtualwalking-ios-checks.yml'
+  pull_request:
+    paths:
+      - 'VirtualWalking-iPhone-Cast-0.3.0/**'
+      - '.github/workflows/virtualwalking-ios-checks.yml'
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check native Bluetooth and training behavior
+        run: node --test VirtualWalking-iPhone-Cast-0.3.0/Tests/*.test.cjs VirtualWalking-TV-Receiver/tests/*.test.cjs
+      - name: Verify bundled iPhone interface
+        run: |
+          python3 VirtualWalking-iPhone-Cast-0.3.0/Scripts/build_web.py
+          git diff --exit-code -- VirtualWalking-iPhone-Cast-0.3.0/Web/native.html

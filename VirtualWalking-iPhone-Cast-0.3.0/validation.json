@@ -1,13 +1,14 @@
 {
-  "version": "0.4.8",
-  "build": 11,
+  "version": "0.4.9",
+  "build": 12,
   "receiver_version": "0.1.4",
-  "behavior_tests_passed": 41,
-  "regressions_reproduced_before_fix": 5,
+  "behavior_tests_passed": 49,
+  "regressions_reproduced_before_fix": 4,
   "cast_wire_golden_vectors": "passed",
   "cast_wire_fuzz_cases": 10000,
   "cast_wire_address_and_undefined_sanitizers": "passed",
   "native_xcode_compile": false,
   "native_device_test": false,
-  "pending": "Build IPA in Codemagic, install current Android APK, verify complete setup on treadmill and TV."
+  "pending": "Build iPhone 0.4.9 in Codemagic and test with the physical treadmill. Existing TV receiver 0.1.4 remains compatible.",
+  "native_ble_to_training_integration": "passed with real bridge, FTMS parser, app handlers and direct receiver controller"
 }
