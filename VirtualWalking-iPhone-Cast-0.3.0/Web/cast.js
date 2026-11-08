@@ -83,7 +83,71 @@
   suspend(){this.suspended=true;this.cancel(Error('Die App ist im Hintergrund.'));this.confirmedRate=null;}
   resume(){this.suspended=false;this.receivedAt=-Infinity;this.confirmedRate=null;}
  }
- const api={CastController,videoID};
+ // Direct HTTP receiver: only player feedback confirms playback, never an HTTP acknowledgement.
+ class ReceiverController {
+  constructor({rpc,onChange=()=>{},now=()=>performance.now()}){Object.assign(this,{rpc,onChange,now,selected:false,connected:false,source:null,state:null,receivedAt:-Infinity,confirmedRate:null,rateError:'',device:'waipu.tv Box',suspended:false,polling:false,epoch:0});}
+  get active(){return this.selected;}
+  setSource(kind,value){this.source=kind==='youtube'?videoID(value):null;this.confirmedRate=null;this.epoch++;}
+  accept(status){
+   this.connected=true;this.state=status;this.receivedAt=this.now();
+   if(status.playerError)this.rateError='YouTube-Fehler '+status.playerError;
+   this.onChange();
+  }
+  matches(){return this.connected&&!!this.source&&this.state?.playerVideoId===this.source;}
+  fresh(){return this.matches()&&!this.suspended&&this.now()-this.receivedAt<5000&&this.state?.feedbackAgeMs<5000;}
+  get playing(){return this.fresh()&&this.state?.playerState===1;}
+  get rate(){return this.fresh()&&Number.isFinite(this.state?.actualRate)?this.state.actualRate:null;}
+  async poll(){
+   if(!this.selected||this.suspended||this.polling)return;
+   this.polling=true;
+   try{this.accept(await this.rpc('tv.receiver.status'));}catch{this.connected=false;this.confirmedRate=null;this.onChange();}
+   finally{this.polling=false;}
+  }
+  async command(method,params={}){await this.rpc('tv.receiver.'+method,params);}
+  async waitFor(predicate,signal,epoch=this.epoch){
+   const deadline=Date.now()+10000;
+   while(Date.now()<deadline){
+    if(signal?.aborted||this.suspended||epoch!==this.epoch)throw Error('TV-Start abgebrochen.');
+    const status=await this.rpc('tv.receiver.status');this.accept(status);
+    if(status.playerError)throw Error('YouTube-Fehler '+status.playerError);
+    if(this.fresh()&&predicate(status))return;
+    await new Promise(resolve=>setTimeout(resolve,200));
+   }
+   throw Error('Der TV hat die Wiedergabe nicht bestätigt.');
+  }
+  async prepare(signal){
+   if(!this.source)throw Error('Bitte ein YouTube-Laufvideo wählen.');
+   const epoch=this.epoch;
+   await this.command('play',{id:this.source});
+   await this.waitFor(s=>s.playerState===1,signal,epoch);
+   await this.command('pause');await this.waitFor(s=>s.playerState===2,signal,epoch);
+  }
+  async play(signal){const epoch=this.epoch;await this.command('resume');await this.waitFor(s=>s.playerState===1,signal,epoch);}
+  pause(){this.epoch++;return this.command('pause');}
+  stop(){return this.pause();}
+  async setRate(rate){
+   if(this.pendingRate||this.rateError||!this.playing)return;
+   if(!Number.isFinite(rate)||rate<.5||rate>2)throw Error('Ungültiges TV-Tempo.');
+   if(this.confirmedRate===rate&&Math.abs(this.rate-rate)<.025)return;
+   this.pendingRate=true;const epoch=this.epoch;
+   try{await this.command('rate',{value:rate});await this.waitFor(s=>Math.abs(s.actualRate-rate)<.025,null,epoch);this.confirmedRate=rate;}
+   catch(error){if(epoch===this.epoch)this.rateError=C.errorText(error);}
+   finally{this.pendingRate=false;this.onChange();}
+  }
+  suspend(){this.suspended=true;this.epoch++;this.confirmedRate=null;}
+  resume(){this.suspended=false;this.receivedAt=-Infinity;this.confirmedRate=null;}
+ }
+ class RoutedController {
+  constructor(options){this.cast=new CastController(options);this.receiver=new ReceiverController(options);this.route=this.cast;}
+  connectReceiver(){this.route=this.receiver;this.receiver.selected=true;this.receiver.rateError='';this.receiver.poll();}
+  receive(message){if(message.connected)this.route=this.cast;this.cast.receive(message);}
+  setSource(kind,value){this.cast.setSource(kind,value);this.receiver.setSource(kind,value);}
+  poll(){return this.receiver.poll();}
+ }
+ for(const name of ['active','connected','device','playing','rate','rateError','confirmedRate'])Object.defineProperty(RoutedController.prototype,name,{get(){return this.route[name];}});
+ for(const name of ['matches','fresh','prepare','play','pause','stop','setRate','suspend','resume'])RoutedController.prototype[name]=function(...args){return this.route[name](...args);};
+
+ const api={CastController,ReceiverController,RoutedController,videoID};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;
  root.VirtualWalkingCast=api;
 })(typeof window!=='undefined'?window:globalThis);

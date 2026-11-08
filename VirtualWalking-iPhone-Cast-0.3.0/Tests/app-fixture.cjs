@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const C=require('../Web/core.js'),{jointStart}=require('../Web/joint-start.js');
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
-function app(t,{nativeCast=false,canControl=true,blockedVideo=false,failedStart=false,failedStop=false,delayedYoutubePause=false,storage=new Map(),nativeLastVideo=null,nativeVideoRead=null}={}){
+function app(t,{nativeCast=false,nativeReceiver=false,canControl=true,blockedVideo=false,failedStart=false,failedStop=false,delayedYoutubePause=false,storage=new Map(),nativeLastVideo=null,nativeVideoRead=null}={}){
  const calls=[],store=storage,timers=new Set(),intervals=new Map();let clock=1000,driver,intervalId=0,youtube,pendingYoutubePause;
  class Element extends EventTarget{
   constructor(){super();this.value='';this.textContent='';this.hidden=false;this.disabled=false;this.checked=false;this.classList={toggle(){}};this.files=[];}
@@ -17,12 +17,14 @@ function app(t,{nativeCast=false,canControl=true,blockedVideo=false,failedStart=
  const window=new EventTarget();
  let remoteState='paused',remoteRate=1,remoteID='M7lc1UVf-VE',remoteConnected=true;
  function sendTV(patch={}){window.dispatchEvent(new CustomEvent('vw-native',{detail:{type:'cast.status',connected:remoteConnected,applicationID:'233637DE',fresh:true,session:remoteConnected?'receiver-session':'closed',device:'Philips',media:remoteConnected?{contentID:remoteID,mediaSessionID:7,playerState:remoteState,rate:remoteRate,playingAd:false,...patch}:null}}));}
- if(nativeCast){window.VirtualWalkingCast=require('../Web/cast.js');window.VirtualWalkingNative={rpc:async(method,params={})=>{
+ if(nativeCast||nativeReceiver){window.VirtualWalkingCast=require('../Web/cast.js');window.VirtualWalkingNative={rpc:async(method,params={})=>{
+  if(method==='tv.receiver.connection')return {connected:nativeReceiver};
+  if(method.startsWith('tv.receiver.')){calls.push(method);if(method==='tv.receiver.play'){remoteID=params.id;remoteState='playing';}if(method==='tv.receiver.pause')remoteState='paused';if(method==='tv.receiver.resume')remoteState='playing';if(method==='tv.receiver.rate')remoteRate=params.value;return {playerState:remoteState==='playing'?1:2,playerVideoId:remoteID,actualRate:remoteRate,feedbackAgeMs:0};}
   if(method==='video.last.get')return nativeVideoRead?nativeVideoRead():nativeLastVideo;
   if(method==='video.last.set'){nativeLastVideo={...params};return {};}
   if(method!=='cast.status')calls.push(method);
   if(method==='cast.play')remoteState='playing';if(method==='cast.pause')remoteState='paused';if(method==='cast.stop')remoteState='idle';if(method==='cast.rate')remoteRate=params.rate;
-  queueMicrotask(()=>sendTV());return {acknowledged:true};
+  if(nativeCast)queueMicrotask(()=>sendTV());return {acknowledged:true};
  }};}
 window.VirtualWalkingCore=C;window.VirtualWalkingStart={jointStart};
  class Client{

@@ -401,6 +401,7 @@ static BOOL VWPhilipsDevicePublished = NO;
 }
 - (void)receiverCommand:(NSString *)method params:(NSDictionary *)params reply:(VWReply)reply {
     NSString *key = [NSUserDefaults.standardUserDefaults stringForKey:@"VWTVReceiverKey"];
+    if ([method isEqualToString:@"tv.receiver.connection"]) { reply(@{@"connected":@(key.length == 24)}, nil, nil); return; }
     if (key.length != 24) { reply(nil, @"Zuerst waipu.tv direkt verbinden.", @"NotConnectedError"); return; }
     NSMutableArray<NSString *> *parts = [NSMutableArray arrayWithObject:[NSString stringWithFormat:@"key=%@", key]];
     if ([method isEqualToString:@"tv.receiver.play"]) {
@@ -456,6 +457,7 @@ static BOOL VWPhilipsDevicePublished = NO;
             if (connected) [NSUserDefaults.standardUserDefaults setObject:key forKey:@"VWTVReceiverKey"];
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (!weakSelf) return;
+                if (connected) [weakSelf emit:@{@"type":@"tv.receiver.connected"}];
                 NSString *message = connected ? @"Die iPhone-App ist direkt mit dem Android-TV-Empfänger verbunden." :
                     [NSString stringWithFormat:@"Keine Verbindung: %@", error.localizedDescription ?: [NSString stringWithFormat:@"HTTP %ld", (long)http.statusCode]];
                 UIAlertController *result = [UIAlertController alertControllerWithTitle:connected ? @"waipu.tv verbunden" : @"Verbindung fehlgeschlagen" message:message preferredStyle:UIAlertControllerStyleAlert];

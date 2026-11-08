@@ -32,6 +32,22 @@ public class MainActivity extends Activity {
     private String videoId = "";
     private String state = "ready";
     private double rate = 1.0;
+    private volatile String playerFeedback = "{}";
+    private volatile long feedbackAt;
+    public final class PlayerFeedback {
+        @android.webkit.JavascriptInterface public void update(String value) {
+            if (value == null || value.length() > 512) return;
+            try {
+                JSONObject report = new JSONObject(value);
+                String id = report.optString("playerVideoId", "");
+                if (!id.isEmpty() && !id.matches("[A-Za-z0-9_-]{11}")) return;
+                double actual = report.optDouble("actualRate", 1.0);
+                if (!Double.isFinite(actual) || actual <= 0 || actual > 16) return;
+                playerFeedback = report.toString();
+                feedbackAt = android.os.SystemClock.elapsedRealtime();
+            } catch (Exception ignored) {}
+        }
+    }
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -55,6 +71,7 @@ public class MainActivity extends Activity {
         web.getSettings().setDomStorageEnabled(true);
         web.getSettings().setMediaPlaybackRequiresUserGesture(false);
         web.setWebChromeClient(new WebChromeClient());
+        web.addJavascriptInterface(new PlayerFeedback(), "VWTvFeedback");
         frame.addView(web, new FrameLayout.LayoutParams(-1, -1));
         label = new TextView(this);
         label.setTextColor(0xffffffff);
@@ -92,12 +109,13 @@ public class MainActivity extends Activity {
             + "<meta name='referrer' content='strict-origin-when-cross-origin'>"
             + "<style>html,body,#player{width:100%;height:100%;margin:0;background:#000}</style></head>"
             + "<body><div id='player'></div><script>"
-            + "var player=null,ready=false,pendingId=null,pendingRate=1,pendingPause=false;"
+            + "var player=null,ready=false,pendingId=null,pendingRate=1,pendingPause=false,playerError=0;"
+            + "function report(){try{if(ready)VWTvFeedback.update(JSON.stringify({playerReady:ready,playerState:player.getPlayerState(),actualRate:player.getPlaybackRate(),playerVideoId:player.getVideoData().video_id||'',playerError:playerError}));}catch(e){}}setInterval(report,1000);"
             + "function onYouTubeIframeAPIReady(){player=new YT.Player('player',{height:'100%',width:'100%',"
             + "playerVars:{playsinline:1,autoplay:1,origin:'" + PLAYER_ORIGIN + "',widget_referrer:'" + PLAYER_ORIGIN + "/'},"
-            + "events:{onReady:function(){ready=true;if(pendingId){player.loadVideoById(pendingId);player.setPlaybackRate(pendingRate);if(pendingPause)player.pauseVideo();}},"
-            + "onError:function(e){console.error('VirtualWalking YouTube error: '+e.data);}}});}"
-            + "function vwPlay(id){pendingId=id;pendingPause=false;if(ready)player.loadVideoById(id);}"
+            + "events:{onReady:function(){ready=true;if(pendingId){player.loadVideoById(pendingId);player.setPlaybackRate(pendingRate);if(pendingPause)player.pauseVideo();}report();},onStateChange:report,onPlaybackRateChange:report,"
+            + "onError:function(e){playerError=e.data;report();console.error('VirtualWalking YouTube error: '+e.data);}}});}"
+            + "function vwPlay(id){pendingId=id;pendingPause=false;playerError=0;if(ready)player.loadVideoById(id);}"
             + "function vwPause(){pendingPause=true;if(ready)player.pauseVideo();}"
             + "function vwResume(){pendingPause=false;if(ready)player.playVideo();}"
             + "function vwRate(v){pendingRate=v;if(ready)player.setPlaybackRate(v);}"
@@ -147,7 +165,14 @@ public class MainActivity extends Activity {
                     catch (Exception e) { code = 400; result.put("error", "Geschwindigkeit außerhalb 0.25–2.0"); }
                 } else if (!"/status".equals(route)) { code = 404; result.put("error", "Unbekannter Befehl"); }
                 result.put("videoId", videoId); result.put("state", state); result.put("requestedRate", rate);
-                result.put("note", "Befehl angenommen; tatsächlicher Playerstatus nicht bestätigt.");
+                JSONObject feedback = new JSONObject(playerFeedback);
+                result.put("playerReady", feedback.optBoolean("playerReady", false));
+                result.put("playerState", feedback.optInt("playerState", -1));
+                result.put("playerVideoId", feedback.optString("playerVideoId", ""));
+                result.put("actualRate", feedback.optDouble("actualRate", 1.0));
+                result.put("playerError", feedback.optInt("playerError", 0));
+                result.put("feedbackAgeMs", feedbackAt == 0 ? 999999 : android.os.SystemClock.elapsedRealtime() - feedbackAt);
+                result.put("note", "HTTP bestaetigt den Auftrag. playerState und actualRate stammen vom YouTube-Player.");
             }
             byte[] body = result.toString().getBytes(StandardCharsets.UTF_8);
             OutputStream out = s.getOutputStream();

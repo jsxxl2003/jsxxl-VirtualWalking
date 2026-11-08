@@ -12,14 +12,15 @@
  let wantedVideo=false,beltPaused=false,lastRateRequest=null,lastRateRequestAt=0,actualRate=null,wakeLock=null;
  let starting=false,stopping=false,startupTask=null,startupAbort=null,playbackProbe=null;
  let motorMayRun=false,coupled=false,stopTask=null,stopConfirmed=false;
- const tv=window.VirtualWalkingNative?new window.VirtualWalkingCast.CastController({rpc:window.VirtualWalkingNative.rpc,onChange:()=>{renderTV();}}):null;
+ const tv=window.VirtualWalkingNative?new (window.VirtualWalkingCast.RoutedController||window.VirtualWalkingCast.CastController)({rpc:window.VirtualWalkingNative.rpc,onChange:()=>{renderTV();}}):null;
  function renderTV(){
   const node=$('tvStatus');if(!node||!tv)return;
   node.textContent=!tv.active?'TV: Über das Cast-Symbol oben verbinden.':!tv.connected?'TV: Nicht verbunden. Bitte über das Cast-Symbol erneut verbinden.':!tv.matches()?'Verbunden: '+tv.device+' · Bitte dasselbe YouTube-Video am TV öffnen.':!tv.fresh()?'TV: Warte auf aktuelle Rückmeldung.':'TV: '+tv.device+' · '+(tv.playing?'Wiedergabe':'Pausiert / bereit')+' · '+rateLabel(tv.rate);
  }
  window.addEventListener('vw-native',event=>{
   const message=event.detail;
-  if(message.type==='cast.status'){
+  if(message.type==='tv.receiver.connected'){try{youtubePlayer?.pauseVideo();$('video').pause();}catch{}tv?.connectReceiver?.();renderTV();}
+  else if(message.type==='cast.status'){
    const wasActive=tv?.active;tv?.receive(message);
    if((starting||workout?.running)&&(wasActive||tv?.active)&&(!tv?.active||!tv.matches()||wasActive!==tv.active)){
     startupAbort?.abort();pause('TV meldet kein passendes Laufvideo mehr. Laufband am Gerät anhalten.');
@@ -122,7 +123,7 @@
  function begin(){
   if(starting||stopping||workout?.running)return;
   if(!bt.connected){announce('Bitte zuerst das Laufband verbinden.',true);return;}
-  if(bt.startBlockedReason){announce(bt.startBlockedReason,true);return;}
+  if(bt.startBlockedReason&&!(bt.uncertainCommand===0&&freshSpeed()&&Number.isFinite(speed)&&speed>=.1)){announce(bt.startBlockedReason,true);return;}
   if(!freshSpeed()||!Number.isFinite(speed)){announce('Bitte auf aktuelle Geschwindigkeitsdaten des Laufbands warten.',true);return;}
   if(speed<.1&&!bt.canControl){announce('App-Start noch nicht möglich: '+(bt.controlIssue||'Der Steuerkanal konnte nicht geöffnet werden.')+' Bitte Wellfit trennen und Bluetooth hier neu verbinden. Alternativ am Gerät starten, dann „Training starten“ drücken.',true);return;}
   // Unlock iOS YouTube playback synchronously in the user's tap gesture, before awaiting BLE operations.
@@ -428,5 +429,5 @@
   const local=read('lastYoutube',null);
   if(!validLastYoutube(local))offerLastYoutube(saved);
  }).catch(()=>{});
- if(tv)window.VirtualWalkingNative.rpc('cast.status').catch(()=>{});
+ if(tv){window.VirtualWalkingNative.rpc('cast.status').catch(()=>{});window.VirtualWalkingNative.rpc('tv.receiver.connection').then(info=>{if(info.connected)tv.connectReceiver?.();}).catch(()=>{});setInterval(()=>tv.poll?.(),1000);}
 })();

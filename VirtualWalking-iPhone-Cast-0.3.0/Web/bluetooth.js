@@ -2,12 +2,12 @@
 (function(root){
  const core=typeof module!=='undefined'&&module.exports?require('./core.js'):root.VirtualWalkingCore;
  class FTMSClient{
-  constructor({bluetooth,onConnection=()=>{},onData=()=>{},onStatus=()=>{},onError=()=>{},commandTimeout=5000}){this.bluetooth=bluetooth;this.onConnection=onConnection;this.onData=onData;this.onStatus=onStatus;this.onError=onError;this.device=null;this.listeners=[];this.pending=false;this.control=null;this.controlWriter=null;this.controlIssue='';this.controlGranted=false;this.uncertain=false;this.uncertainCommand=null;this.lastControlError='';this.operation=null;this.commandTimeout=commandTimeout;this.starting=false;}
+  constructor({bluetooth,onConnection=()=>{},onData=()=>{},onStatus=()=>{},onError=()=>{},commandTimeout=15000}){this.bluetooth=bluetooth;this.onConnection=onConnection;this.onData=onData;this.onStatus=onStatus;this.onError=onError;this.device=null;this.listeners=[];this.pending=false;this.control=null;this.controlWriter=null;this.controlIssue='';this.controlGranted=false;this.uncertain=false;this.uncertainCommand=null;this.lastControlError='';this.operation=null;this.commandTimeout=commandTimeout;this.starting=false;}
   get connected(){return !!this.device?.gatt?.connected;}
   get canControl(){return this.connected&&!!this.control;}
   get startBlockedReason(){
    if(!this.uncertain)return '';
-   return this.uncertainCommand===0?'Die Steuerfreigabe ist fehlgeschlagen. Es wurde kein Laufband-Startbefehl gesendet. Bitte Bluetooth neu verbinden.':'Unklarer Laufband-Zustand nach einem unbestätigten Start-/Stoppbefehl. Bitte am Gerät prüfen und Bluetooth neu verbinden.';
+   return this.uncertainCommand===0?'Die Steuerfreigabe ist fehlgeschlagen. Es wurde kein Laufband-Startbefehl gesendet. Bitte Bluetooth neu verbinden. '+this.lastControlError:'Unklarer Laufband-Zustand nach einem unbestätigten Start-/Stoppbefehl. Bitte am Gerät prüfen und Bluetooth neu verbinden.';
   }
   async connect(){
    if(this.pending)return;

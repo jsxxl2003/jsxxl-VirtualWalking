@@ -16,7 +16,7 @@ const code = page.match(/<script>([\s\S]*?)<\/script>/)[1];
 const calls = [];
 let options;
 const player = Object.fromEntries(['loadVideoById','setPlaybackRate','pauseVideo','playVideo'].map(name => [name, (...args) => calls.push([name,...args])]));
-const context = vm.createContext({console, YT:{Player:function(id, config){options=config;return player;}}});
+const context = vm.createContext({console,setInterval:()=>0,VWTvFeedback:{update(){}}, YT:{Player:function(id, config){options=config;return player;}}});
 vm.runInContext(code, context);
 context.vwPlay('abcdefghijk');
 context.vwRate(1.5);
