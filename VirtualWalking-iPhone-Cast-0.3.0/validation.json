@@ -1,15 +1,15 @@
 {
-  "version": "0.4.16",
-  "build": 19,
+  "version": "0.4.17",
+  "build": 20,
   "receiver_version": "0.1.5",
   "behavior_tests_passed": 86,
-  "regressions_reproduced_before_fix": 2,
+  "regressions_reproduced_before_fix": 0,
   "cast_wire_golden_vectors": "passed",
   "cast_wire_fuzz_cases": 10000,
   "cast_wire_address_and_undefined_sanitizers": "passed",
   "native_xcode_compile": false,
   "native_device_test": false,
-  "pending": "Build iPhone 0.4.16 in Codemagic; check normal-speed TV start, initial acceleration and later speed adaptation on the physical devices. Speed +/- changes from 0.4.15 also still need device confirmation. TV remains 0.1.5 and needs no update.",
+  "pending": "Build iPhone 0.4.17 in Codemagic and inspect the anthracite/purple appearance on the iPhone. Functional code is unchanged from the accepted 0.4.16 baseline. TV remains 0.1.5.",
   "native_ble_to_training_integration": "passed with real bridge, FTMS parser, app handlers and direct receiver controller",
   "receiver_address_parser": "passed native C parser: IPv4, changed DHCP address, explicit/default port, invalid destinations",
   "receiver_address_change": "passed: response from previous destination cannot confirm the new receiver",
@@ -26,5 +26,8 @@
   "previous_device_confirmation": "User confirmed that all functions work with iPhone 0.4.14 / TV receiver 0.1.5.",
   "native_ftms_speed_validation": "passed compiled C allowlist: only 0/2/7/8; speed requires advertised feature bit and valid read range; reject missing/malformed capability data, out-of-range, off-grid and zero speed targets",
   "speed_controls": "passed actual native bridge and app handlers: +/- from real telemetry, device limits, unsupported capability, no motor Start from speed command, no repeated tap until telemetry, cancellation before write, Stop after in-flight speed indication, no retry after missing FTMS acknowledgement",
-  "tv_start_rate": "two tests reproduced 0.50x startup on 0.4.15 below the fixed reference; now passed 1x through acceleration and steady initial walking, calibration of the existing reference field after three stable seconds, later proportional changes, sub-1 km/h walking, manual override, disabled sync and actual 1x TV feedback"
+  "tv_start_rate": "two tests reproduced 0.50x startup on 0.4.15 below the fixed reference; now passed 1x through acceleration and steady initial walking, calibration of the existing reference field after three stable seconds, later proportional changes, sub-1 km/h walking, manual override, disabled sync and actual 1x TV feedback",
+  "theme_color_only": "passed: normalized CSS, SVG and HTML compare equal after removing color literals and the palette variable rename; no layout, dimensions or control changes",
+  "theme_contrast": "passed computed ratios: white on primary purple 5.75:1, main text on panel 14.12:1, muted text on panel 7.56:1, purple accent on background 6.76:1",
+  "theme_browser_render": "not completed: local Chromium launch blocked by runtime socket permissions; structural color-only comparison and contrast calculation completed instead"
 }

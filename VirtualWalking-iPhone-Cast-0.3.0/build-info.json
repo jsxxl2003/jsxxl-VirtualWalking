@@ -1,5 +1,5 @@
 {
-  "version": "0.4.16",
+  "version": "0.4.17",
   "status": "behavior-tested-awaiting-device-check",
   "upstream": "VirtualWalking Bluefy 0.1.4",
   "upstream_files": {
@@ -9,8 +9,9 @@
   },
   "receiver_app_id": "233637DE",
   "cast_sdk": "4.8.6",
-  "source_base_commit": "5810b3b4f0bc39376e2a760c064f87fd6ff20f7f",
+  "source_base_commit": "9875564db44599977c92c492026762be1967bec9",
   "features": [
+    "anthracite and purple theme across iPhone web interface, icons, navigation and Bluetooth picker; colors only",
     "normal 1x video start throughout motor acceleration",
     "stable actual initial walking speed becomes the session reference after three seconds",
     "explicit manual reference edits override automatic startup calibration",
@@ -36,7 +37,7 @@
     "persistent last selected YouTube video"
   ],
   "direct_video_sender_implemented": true,
-  "build": 19,
+  "build": 20,
   "default_transport": "direct-http-tv-receiver",
   "receiver_version": "0.1.5",
   "source_files_sha256": {
@@ -47,5 +48,12 @@
     "app.js": "1d21723704daf08a6dbea20a2b13b228b603af1ae5c24223e1101be5dada321c",
     "native-bridge.js": "0ea68eeebb5cbc4c21a4af5da6d80f4bc17fb1bf87cc2bcb0dde39a176c8acd1"
   },
-  "live_screen_mirroring_implemented": false
+  "live_screen_mirroring_implemented": false,
+  "theme": {
+    "background": "#17171c",
+    "panel": "#232129",
+    "accent": "#c084fc",
+    "primary": "#9139cb",
+    "primary_text": "#ffffff"
+  }
 }

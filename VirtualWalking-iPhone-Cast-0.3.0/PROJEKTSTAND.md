@@ -2,7 +2,7 @@
 
 ## Aktueller Stand
 
-- iPhone-App: **0.4.16, Build 19**; Android-TV-Empfänger: **0.1.5, Build 6**.
+- iPhone-App: **0.4.17, Build 20**; Android-TV-Empfänger: **0.1.5, Build 6**.
 - Aktueller TV-Weg: eigener VirtualWalking-Empfänger auf der waipu.tv Box,
   HTTP-Port 8765. Die Box ist wieder per LAN verbunden; im Vodafone-Router
   ist 192.168.0.32 reserviert und am TV bestätigt. Zwischenzeitlich wurde
@@ -11,6 +11,33 @@
   `fix/tv-player-identity-0.1.1` sind Grundlage dieses gemeinsamen Stands.
 
 ## Behobene Fehler
+
+### Farbkorrektur 0.4.17: Anthrazit und Lila
+
+Der Nutzer erinnert an das verbindlich vereinbarte Anthrazit-Lila-Design.
+Die iPhone-Fassung hatte die alte Petrol-/Limettengrün-Palette der übernommenen
+Weboberfläche behalten; die frühere Farbvorgabe war dort nicht fortgeführt worden.
+Der Nutzer hatte den funktionierenden Stand nach 0.4.16 ausdrücklich als passend
+bestätigt. Dieser Stand ist unveränderte funktionelle Grundlage der Farbkorrektur.
+
+Nur die Farben sind angepasst: Web-Hintergründe, Karten, Eingaben, Schaltflächen,
+Akzente, Checkboxen, Markierungen, Rahmen, Platzhalter und das vorhandene SVG-Symbol.
+Native iPhone-Navigation, Verbindungsbutton, Bluetooth-Auswahl sowie die
+Hintergründe beim Laden und Scrollen verwenden dieselbe Palette. Texte und
+Bedienelemente bleiben bis auf die Versionsnummer identisch. Layout, Größen,
+Abstände, FTMS, Tempo-Tasten, Trainingsablauf, Videoauswahl, TV-Verbindung,
+Schlüsselspeicherung und normale Videostartgeschwindigkeit bleiben erhalten.
+
+Palette: Hintergrund #17171c, Fläche #232129, Akzent #c084fc,
+primäre Schaltfläche #9139cb mit weißer Schrift. Die geprüften Textkontraste
+betragen mindestens 5,75:1 für die genannten zentralen Farbkombinationen.
+Nach Normalisierung der Farbliterale und der umbenannten Akzentvariablen sind
+CSS-, SVG- und HTML-Struktur gegenüber 0.4.16 identisch. Keine neuen Tests nur
+für Farben; die bestehenden 86 Verhaltenstests werden unverändert geprüft.
+Die Browser-Bildprüfung war durch Socket-Beschränkungen der lokalen Laufzeit
+nicht ausführbar. Stattdessen wurden die vollständigen Nicht-Farbregeln und
+die Kontrastwerte geprüft. Die native Ansicht ist nach Codemagic-Build am
+realen iPhone zu kontrollieren. TV-Empfänger bleibt 0.1.5.
 
 ### Korrektur 0.4.16: Video startet und bleibt zunächst bei 1×
 

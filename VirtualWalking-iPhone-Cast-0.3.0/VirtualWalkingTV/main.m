@@ -20,6 +20,17 @@ typedef void (^VWEvent)(NSDictionary *event);
 static NSString *const VWOrigin = @"https://virtualwalking-iphone-bluefy.saltychick64.chatgpt.site/";
 static NSString *const VWYouTubeReceiver = @"233637DE";
 static NSString *VWString(id value) { return [value isKindOfClass:NSString.class] ? value : @""; }
+static UIColor *VWBackgroundColor(void) { return [UIColor colorWithRed:23.0/255 green:23.0/255 blue:28.0/255 alpha:1]; }
+static UIColor *VWPanelColor(void) { return [UIColor colorWithRed:35.0/255 green:33.0/255 blue:41.0/255 alpha:1]; }
+static UIColor *VWAccentColor(void) { return [UIColor colorWithRed:192.0/255 green:132.0/255 blue:252.0/255 alpha:1]; }
+static void VWApplyNavigationColors(UINavigationBar *bar) {
+    UINavigationBarAppearance *appearance = [bar.standardAppearance copy];
+    appearance.backgroundColor = VWBackgroundColor();
+    NSMutableDictionary *title = [NSMutableDictionary dictionaryWithDictionary:appearance.titleTextAttributes ?: @{}];
+    title[NSForegroundColorAttributeName] = UIColor.whiteColor; appearance.titleTextAttributes = title;
+    bar.standardAppearance = appearance; bar.scrollEdgeAppearance = appearance; bar.compactAppearance = appearance;
+    bar.tintColor = VWAccentColor();
+}
 static NSString *VWUUID(CBUUID *uuid) {
     NSString *value = uuid.UUIDString.lowercaseString;
     return value.length == 4 ? [NSString stringWithFormat:@"0000%@-0000-1000-8000-00805f9b34fb", value] : value;
@@ -76,13 +87,18 @@ static BOOL VWPhilipsDevicePublished = NO;
 - (instancetype)init { if ((self = [super initWithStyle:UITableViewStyleInsetGrouped])) self.devices = [NSMutableArray new]; return self; }
 - (void)viewDidLoad {
     [super viewDidLoad]; self.title = @"FTMS-Laufband auswählen";
+    self.tableView.backgroundColor = VWBackgroundColor();
+    self.tableView.separatorColor = [UIColor colorWithRed:68.0/255 green:59.0/255 blue:80.0/255 alpha:1];
+    VWApplyNavigationColors(self.navigationController.navigationBar);
     self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCancel target:self action:@selector(cancel)];
     UILabel *hint = [UILabel new]; hint.text = @"Suche nach Laufbändern in der Nähe …"; hint.numberOfLines = 0; hint.textAlignment = NSTextAlignmentCenter; self.tableView.backgroundView = hint;
+    hint.textColor = UIColor.lightGrayColor;
 }
 - (void)cancel { if (self.selected) self.selected(nil); }
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section { return self.devices.count; }
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)path {
     UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:nil];
+    cell.backgroundColor = VWPanelColor(); cell.tintColor = VWAccentColor();
     CBPeripheral *device = self.devices[path.row]; cell.textLabel.text = self.names[device.identifier.UUIDString] ?: device.name ?: @"Unbenanntes FTMS-Laufband"; cell.detailTextLabel.text = @"Bluetooth FTMS"; return cell;
 }
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)path { if (self.selected) self.selected(self.devices[path.row]); }
@@ -413,7 +429,7 @@ static BOOL VWPhilipsDevicePublished = NO;
 }
 - (void)emit:(NSDictionary *)event { if (self.ready) [self call:@"__vwNativeEvent" value:event]; }
 - (void)viewDidLoad {
-    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.16"; self.token = NSUUID.UUID.UUIDString;
+    [super viewDidLoad]; self.title = @"VirtualWalking · 0.4.17"; self.token = NSUUID.UUID.UUIDString;
     NSURLSessionConfiguration *receiverConfig = [NSURLSessionConfiguration ephemeralSessionConfiguration];
     receiverConfig.HTTPMaximumConnectionsPerHost = 1;
     receiverConfig.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
@@ -429,10 +445,11 @@ static BOOL VWPhilipsDevicePublished = NO;
     [configuration.userContentController addUserScript:[[WKUserScript alloc] initWithSource:bridge injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES]];
     [configuration.userContentController addScriptMessageHandler:self name:@"virtualwalking"];
     self.web = [[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration]; self.web.navigationDelegate = self; self.web.UIDelegate = self;
+    self.view.backgroundColor = VWBackgroundColor(); self.web.backgroundColor = VWBackgroundColor(); self.web.scrollView.backgroundColor = VWBackgroundColor();
     self.web.translatesAutoresizingMaskIntoConstraints = NO; [self.view addSubview:self.web];
     [NSLayoutConstraint activateConstraints:@[[self.web.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],[self.web.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],[self.web.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],[self.web.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor]]];
     UIBarButtonItem *button = [[UIBarButtonItem alloc] initWithTitle:@"TV verbinden" style:UIBarButtonItemStylePlain target:self action:@selector(connectTV)];
-    button.tintColor = UIColor.systemTealColor;
+    button.tintColor = VWAccentColor();
     button.accessibilityHint = @"Verwendet die gespeicherte Verbindung zur waipu.tv Box.";
     self.navigationItem.rightBarButtonItem = button;
     self.ble = [VWBLE new]; self.ble.presenter = self; self.cast = [VWCast new];
@@ -612,7 +629,9 @@ static BOOL VWPhilipsDevicePublished = NO;
 - (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)connectionOptions {
     if (![scene isKindOfClass:UIWindowScene.class]) return;
     self.window = [[UIWindow alloc] initWithWindowScene:(UIWindowScene *)scene]; self.window.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    self.host = [VWHost new]; self.window.rootViewController = [[UINavigationController alloc] initWithRootViewController:self.host]; [self.window makeKeyAndVisible];
+    self.window.backgroundColor = VWBackgroundColor(); self.window.tintColor = VWAccentColor();
+    self.host = [VWHost new]; self.window.rootViewController = [[UINavigationController alloc] initWithRootViewController:self.host];
+    VWApplyNavigationColors(((UINavigationController *)self.window.rootViewController).navigationBar); [self.window makeKeyAndVisible];
 }
 - (void)sceneWillResignActive:(UIScene *)scene { [self.host suspend]; }
 - (void)sceneDidBecomeActive:(UIScene *)scene { [self.host resume]; }
